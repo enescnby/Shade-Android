@@ -1,56 +1,69 @@
 package com.shade.app.security
 
 import android.content.Context
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class KeyVaultManager(context: Context) {
+private val Context.dataStore by preferencesDataStore(name = "shade_vault")
 
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
+@Singleton
+class KeyVaultManager @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val cryptoManager: CryptoManager
+) {
 
-    private val sharedPreferences = EncryptedSharedPreferences.create(
-        context,
-        "shade_secret_vault",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-    )
-
-    fun saveEd25519PrivateKey(privateKeyHex: String) {
-        sharedPreferences.edit().putString("ED25519_PRIVATE_KEY", privateKeyHex).apply()
+    private object Keys {
+        val ED25519_PRIVATE_KEY = stringPreferencesKey("ED25519_PRIVATE_KEY")
+        val X25519_PRIVATE_KEY = stringPreferencesKey("X25519_PRIVATE_KEY")
+        val JWT_ACCESS_TOKEN = stringPreferencesKey("JWT_ACCESS_TOKEN")
+        val SHADE_ID = stringPreferencesKey("SHADE_ID")
     }
 
-    fun getEd25519PrivateKey(): String? {
-        return sharedPreferences.getString("ED25519_PRIVATE_KEY", null)
+    private fun saveValue(key: androidx.datastore.preferences.core.Preferences.Key<String>, value: String) {
+        runBlocking {
+            val encryptedValue = cryptoManager.encrypt(value)
+            context.dataStore.edit { preferences ->
+                preferences[key] = encryptedValue
+            }
+        }
     }
 
-    fun saveX25519PrivateKey(privateKeyHex: String) {
-        sharedPreferences.edit().putString("X25519_PRIVATE_KEY", privateKeyHex).apply()
+    private fun getValue(key: androidx.datastore.preferences.core.Preferences.Key<String>): String? {
+        return runBlocking {
+            context.dataStore.data.map { preferences ->
+                preferences[key]?.let { encryptedValue ->
+                    try {
+                        cryptoManager.decrypt(encryptedValue)
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+            }.first()
+        }
     }
 
-    fun getX25519PrivateKey(): String? {
-        return sharedPreferences.getString("X25519_PRIVATE_KEY", null)
-    }
+    fun saveEd25519PrivateKey(privateKeyHex: String) = saveValue(Keys.ED25519_PRIVATE_KEY, privateKeyHex)
+    fun getEd25519PrivateKey(): String? = getValue(Keys.ED25519_PRIVATE_KEY)
 
-    fun saveAccessToken(token: String) {
-        sharedPreferences.edit().putString("JWT_ACCESS_TOKEN", token).apply()
-    }
+    fun saveX25519PrivateKey(privateKeyHex: String) = saveValue(Keys.X25519_PRIVATE_KEY, privateKeyHex)
+    fun getX25519PrivateKey(): String? = getValue(Keys.X25519_PRIVATE_KEY)
 
-    fun getAccessToken(): String? {
-        return sharedPreferences.getString("JWT_ACCESS_TOKEN", null)
-    }
+    fun saveAccessToken(token: String) = saveValue(Keys.JWT_ACCESS_TOKEN, token)
+    fun getAccessToken(): String? = getValue(Keys.JWT_ACCESS_TOKEN)
 
-    fun saveShadeId(shadeId: String) {
-        sharedPreferences.edit().putString("SHADE_ID", shadeId).apply()
-    }
-
-    fun getShadeId(): String? {
-        return sharedPreferences.getString("SHADE_ID", null)
-    }
+    fun saveShadeId(shadeId: String) = saveValue(Keys.SHADE_ID, shadeId)
+    fun getShadeId(): String? = getValue(Keys.SHADE_ID)
 
     fun clearVault() {
-        sharedPreferences.edit().clear().apply()
+        runBlocking {
+            context.dataStore.edit { it.clear() }
+        }
     }
 }

@@ -6,8 +6,11 @@ import com.shade.app.data.remote.dto.LoginInitResponse
 import com.shade.app.data.remote.dto.LoginVerifyRequest
 import com.shade.app.data.remote.dto.RegisterRequest
 import com.shade.app.domain.repository.AuthRepository
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class AuthRepositoryImpl(
+@Singleton
+class AuthRepositoryImpl @Inject constructor(
     private val authService: AuthService
 ): AuthRepository {
     override suspend fun register(

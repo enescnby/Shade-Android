@@ -8,9 +8,11 @@ import com.shade.app.domain.usecase.LoginUseCase
 import com.shade.app.domain.usecase.RegisterUseCase
 import com.shade.app.security.KeyVaultManager
 import com.shade.app.ui.util.UiText
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 sealed class AuthUiState {
     object Idle : AuthUiState()
@@ -23,7 +25,8 @@ sealed class AuthUiState {
     data class Error(val message: UiText) : AuthUiState()
 }
 
-class AuthViewModel(
+@HiltViewModel
+class AuthViewModel @Inject constructor(
     private val registerUseCase: RegisterUseCase,
     private val loginUseCase: LoginUseCase,
     private val keyVaultManager: KeyVaultManager,

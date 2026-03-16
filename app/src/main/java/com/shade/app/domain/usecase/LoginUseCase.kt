@@ -2,10 +2,12 @@ package com.shade.app.domain.usecase
 
 import com.shade.app.crypto.AuthCryptoManager
 import com.shade.app.domain.repository.AuthRepository
+import com.shade.app.security.KeyVaultManager
+import javax.inject.Inject
 
-class LoginUseCase(
+class LoginUseCase @Inject constructor(
     private val repository: AuthRepository,
-    private val authCrypto: AuthCryptoManager
+    private val authCrypto: AuthCryptoManager,
 ) {
     suspend operator fun invoke(
         shadeId: String,

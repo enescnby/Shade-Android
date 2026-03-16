@@ -1,0 +1,12 @@
+package com.shade.app.domain.repository
+
+import com.shade.app.data.local.entities.ContactEntity
+import kotlinx.coroutines.flow.Flow
+
+interface ContactRepository {
+    suspend fun insertContact(contact: ContactEntity)
+    fun getAllContacts(): Flow<List<ContactEntity>>
+    suspend fun getContactByShadeId(shadeId: String): ContactEntity?
+    fun searchContacts(query: String): Flow<List<ContactEntity>>
+    suspend fun deleteContact(contact: ContactEntity)
+}
