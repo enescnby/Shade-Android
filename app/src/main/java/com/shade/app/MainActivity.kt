@@ -21,14 +21,6 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.FirebaseMessaging
-import com.shade.app.crypto.AuthCryptoManager
-import com.shade.app.crypto.MessageCryptoManager
-import com.shade.app.crypto.MnemonicManager
-import com.shade.app.data.remote.api.AuthService
-import com.shade.app.data.repository.AuthRepositoryImpl
-import com.shade.app.domain.usecase.LoginUseCase
-import com.shade.app.domain.usecase.RegisterUseCase
-import com.shade.app.security.KeyVaultManager
 import com.shade.app.ui.auth.AuthScreen
 import com.shade.app.ui.chat.ChatScreen
 import com.shade.app.ui.home.HomeScreen
@@ -39,9 +31,6 @@ import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
 
     private val requestNotificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->

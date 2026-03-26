@@ -39,9 +39,13 @@ class RegisterUseCase @Inject constructor(
                 fcmToken = fcmToken
             )
 
-            result.onSuccess {
-                keyVaultManager.saveEd25519PrivateKey(idPriv)
-                keyVaultManager.saveX25519PrivateKey(encPriv)
+            result.map { authResult ->
+                val finalResult = authResult.copy(
+                    idPrivateKey = idPriv,
+                    encPrivateKey = encPriv
+                )
+                repository.saveSession(finalResult)
+                finalResult
             }
 
             result

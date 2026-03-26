@@ -21,13 +21,18 @@ class LoginUseCase @Inject constructor(
 
             val aesKey = authCrypto.deriveAesKeyFromMnemonic(mnemonic, loginData.salt)
 
-            val decryptedPrivateKeyHex = authCrypto.decryptPrivateKey(
+            val decryptedIdPrivateKeyHex = authCrypto.decryptPrivateKey(
                 loginData.encryptedIdentityPrivateKey,
                 aesKey
             )
 
+            val decryptedEncPrivateKeyHex = authCrypto.decryptPrivateKey(
+                loginData.encryptedEncryptionPrivateKey,
+                aesKey
+            )
+
             val signature = authCrypto.signChallenge(
-                decryptedPrivateKeyHex,
+                decryptedIdPrivateKeyHex,
                 loginData.challenge
             )
 
@@ -37,7 +42,15 @@ class LoginUseCase @Inject constructor(
                 signature = signature,
                 deviceModel = deviceModel,
                 fcmToken = fcmToken
-            )
+            ).map { authResult ->
+                val finalResult = authResult.copy(
+                    idPrivateKey = decryptedIdPrivateKeyHex,
+                    encPrivateKey = decryptedEncPrivateKeyHex
+                )
+
+                repository.saveSession(finalResult)
+                finalResult
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }

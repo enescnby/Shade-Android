@@ -9,12 +9,14 @@ import com.shade.app.data.remote.dto.RegisterRequest
 import com.shade.app.data.remote.dto.RegisterResponse
 import com.shade.app.domain.model.AuthResult
 import com.shade.app.domain.repository.AuthRepository
+import com.shade.app.security.KeyVaultManager
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class AuthRepositoryImpl @Inject constructor(
-    private val authService: AuthService
+    private val authService: AuthService,
+    private val keyVaultManager: KeyVaultManager
 ) : AuthRepository {
 
     override suspend fun register(
@@ -82,5 +84,14 @@ class AuthRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    override suspend fun saveSession(authResult: AuthResult) {
+        keyVaultManager.saveShadeId(authResult.shadeId)
+        keyVaultManager.saveUserId(authResult.userId)
+
+        authResult.accessToken?.let { keyVaultManager.saveAccessToken(it) }
+        authResult.idPrivateKey?.let { keyVaultManager.saveEd25519PrivateKey(it) }
+        authResult.encPrivateKey?.let { keyVaultManager.saveX25519PrivateKey(it) }
     }
 }

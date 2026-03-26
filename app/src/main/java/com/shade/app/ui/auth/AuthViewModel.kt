@@ -59,13 +59,12 @@ class AuthViewModel @Inject constructor(
             val result = registerUseCase(currentMnemonic, deviceModel, fcmToken)
 
             result.onSuccess { authResult ->
-                keyVaultManager.saveShadeId(authResult.shadeId)
                 _uiState.value = AuthUiState.Success(
                     message = UiText.StringResource(R.string.account_created),
                     mnemonic = currentMnemonic,
                     shadeId = authResult.shadeId
                 )
-            }.onFailure { error ->
+            }.onFailure {
                 _uiState.value = AuthUiState.Error(UiText.StringResource(R.string.something_went_wrong))
             }
         }
@@ -76,12 +75,9 @@ class AuthViewModel @Inject constructor(
             _uiState.value = AuthUiState.Loading
             val result = loginUseCase(shadeId, mnemonic, deviceModel, fcmToken)
 
-            result.onSuccess { authResult ->
-                keyVaultManager.saveAccessToken(authResult.accessToken!!)
-                keyVaultManager.saveShadeId(shadeId)
-                keyVaultManager.saveUserId(authResult.userId)
+            result.onSuccess {
                 _uiState.value = AuthUiState.Success(UiText.StringResource(R.string.login_successful))
-            }.onFailure { error ->
+            }.onFailure {
                 _uiState.value = AuthUiState.Error(UiText.StringResource(R.string.something_went_wrong))
             }
         }

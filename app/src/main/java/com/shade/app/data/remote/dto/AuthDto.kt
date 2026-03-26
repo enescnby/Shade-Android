@@ -24,6 +24,7 @@ data class LoginInitRequest(
 
 data class LoginInitResponse(
     @SerializedName("encrypted_identity_private_key") val encryptedIdentityPrivateKey: String,
+    @SerializedName("encrypted_encryption_private_key") val encryptedEncryptionPrivateKey: String,
     @SerializedName("salt") val salt: String,
     @SerializedName("challenge") val challenge: String
 )

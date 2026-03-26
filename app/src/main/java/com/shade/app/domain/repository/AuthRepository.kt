@@ -23,4 +23,6 @@ interface AuthRepository {
         deviceModel: String,
         fcmToken: String
     ): Result<AuthResult>
+
+    suspend fun saveSession(authResult: AuthResult)
 }
