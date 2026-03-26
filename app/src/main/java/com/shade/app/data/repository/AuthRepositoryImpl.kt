@@ -4,10 +4,16 @@ import com.shade.app.data.remote.api.AuthService
 import com.shade.app.data.remote.dto.LoginInitRequest
 import com.shade.app.data.remote.dto.LoginInitResponse
 import com.shade.app.data.remote.dto.LoginVerifyRequest
+import com.shade.app.data.remote.dto.LoginVerifyResponse
 import com.shade.app.data.remote.dto.RegisterRequest
+import com.shade.app.data.remote.dto.RegisterResponse
+import com.shade.app.domain.model.AuthResult
 import com.shade.app.domain.repository.AuthRepository
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class AuthRepositoryImpl(
+@Singleton
+class AuthRepositoryImpl @Inject constructor(
     private val authService: AuthService
 ) : AuthRepository {
 
@@ -19,7 +25,7 @@ class AuthRepositoryImpl(
         salt: String,
         deviceModel: String,
         fcmToken: String
-    ): Result<String> {
+    ): Result<AuthResult> {
         return try {
             val response = authService.register(
                 RegisterRequest(
@@ -33,7 +39,8 @@ class AuthRepositoryImpl(
                 )
             )
             if (response.isSuccessful && response.body() != null) {
-                Result.success(response.body()!!.shadeId)
+                val body = response.body()!!
+                Result.success(AuthResult(body.shadeId, body.userId, null))
             } else {
                 Result.failure(Exception("Registration failed: ${response.message()}"))
             }
@@ -61,13 +68,14 @@ class AuthRepositoryImpl(
         signature: String,
         deviceModel: String,
         fcmToken: String
-    ): Result<String> {
+    ): Result<AuthResult> {
         return try {
             val response = authService.loginVerify(
                 LoginVerifyRequest(shadeId, challenge, signature, deviceModel, fcmToken)
             )
             if (response.isSuccessful && response.body() != null) {
-                Result.success(response.body()!!.accessToken)
+                val body = response.body()!!
+                Result.success(AuthResult(body.shadeId, body.userId, body.accessToken))
             } else {
                 Result.failure(Exception("Verification failed"))
             }

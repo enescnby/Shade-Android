@@ -1,6 +1,7 @@
 package com.shade.app.domain.repository
 
 import com.shade.app.data.remote.dto.LoginInitResponse
+import com.shade.app.domain.model.AuthResult
 
 interface AuthRepository {
     suspend fun register(
@@ -11,7 +12,7 @@ interface AuthRepository {
         salt: String,
         deviceModel: String,
         fcmToken: String
-    ): Result<String>
+    ): Result<AuthResult>
 
     suspend fun loginInit(shadeId: String): Result<LoginInitResponse>
 
@@ -21,5 +22,5 @@ interface AuthRepository {
         signature: String,
         deviceModel: String,
         fcmToken: String
-    ): Result<String>
+    ): Result<AuthResult>
 }

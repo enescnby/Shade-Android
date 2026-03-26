@@ -22,4 +22,7 @@
     <string name="no_personal_data">E-posta yok. Telefon numarası yok.</string>
     <string name="free_anonymous">Hesap oluşturmak tamamen ücretsiz ve anonim.</string>
     <string name="id_copied">Shade Kimliği panoya kopyalandı</string>
+    <string name="unknown_user">Bilinmeyen Kullanıcı</string>
+    <string name="unread_messages">Okunmamış Mesajlar</string>
+    <string name="user_not_found">Kullanıcı Bulunamadı</string>
 </resources>

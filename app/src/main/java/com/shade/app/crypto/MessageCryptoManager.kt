@@ -13,8 +13,11 @@ import org.bouncycastle.crypto.params.X25519PrivateKeyParameters
 import org.bouncycastle.crypto.params.X25519PublicKeyParameters
 import org.bouncycastle.util.encoders.Hex
 import java.security.SecureRandom
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class MessageCryptoManager {
+@Singleton
+class MessageCryptoManager @Inject constructor() {
 
     fun generateX25519KeyPairHex(): Pair<String, String> {
         val random = SecureRandom()

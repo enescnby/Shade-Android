@@ -1,17 +1,21 @@
-package com.shade.app.domain.usecase
+package com.shade.app.domain.usecase.auth
 
 import com.shade.app.crypto.AuthCryptoManager
 import com.shade.app.crypto.MessageCryptoManager
+import com.shade.app.domain.model.AuthResult
 import com.shade.app.domain.repository.AuthRepository
+import com.shade.app.security.KeyVaultManager
 import org.bouncycastle.util.encoders.Hex
 import java.security.SecureRandom
+import javax.inject.Inject
 
-class RegisterUseCase(
+class RegisterUseCase @Inject constructor(
     private val repository: AuthRepository,
     private val authCrypto: AuthCryptoManager,
-    private val messageCrypto: MessageCryptoManager
+    private val messageCrypto: MessageCryptoManager,
+    private val keyVaultManager: KeyVaultManager
 ) {
-    suspend operator fun invoke(mnemonic: List<String>, deviceModel: String, fcmToken: String): Result<String> {
+    suspend operator fun invoke(mnemonic: List<String>, deviceModel: String, fcmToken: String): Result<AuthResult> {
         return try {
             val (idPub, idPriv) = authCrypto.generateEd25519KeyPairHex()
             val (encPub, encPriv) = messageCrypto.generateX25519KeyPairHex()
@@ -25,7 +29,7 @@ class RegisterUseCase(
             val encryptedIdPriv = authCrypto.encryptPrivateKey(idPriv, aesKey)
             val encryptedEncPriv = authCrypto.encryptPrivateKey(encPriv, aesKey)
 
-            repository.register(
+            val result = repository.register(
                 identityPublicKey = idPub,
                 encryptedIdentityPrivateKey = encryptedIdPriv,
                 encryptionPublicKey = encPub,
@@ -34,6 +38,13 @@ class RegisterUseCase(
                 deviceModel = deviceModel,
                 fcmToken = fcmToken
             )
+
+            result.onSuccess {
+                keyVaultManager.saveEd25519PrivateKey(idPriv)
+                keyVaultManager.saveX25519PrivateKey(encPriv)
+            }
+
+            result
         } catch (e: Exception) {
             Result.failure(e)
         }

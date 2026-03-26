@@ -47,21 +47,45 @@ enum class AuthStep {
 }
 
 @Composable
-fun AuthScreen(viewModel: AuthViewModel) {
+fun AuthScreen(
+    viewModel: AuthViewModel,
+    onAuthSuccess: () -> Unit
+) {
     val uiState by viewModel.uiState.collectAsState()
-    
-    AuthScreenContent(
-        uiState = uiState,
-        onLogin = { shadeId, mnemonic ->
-            viewModel.login(shadeId, mnemonic, "Android Device", "dummy_fcm")
-        },
-        onRegister = {
-            viewModel.register("Android Device", "dummy_fcm")
-        },
-        onResetUiState = {
-            viewModel.resetUiState()
+
+    LaunchedEffect(uiState) {
+        when (uiState) {
+            is AuthUiState.Authenticated -> {
+                onAuthSuccess()
+            }
+            is AuthUiState.Success -> {
+                if ((uiState as AuthUiState.Success).mnemonic.isEmpty()) {
+                    onAuthSuccess()
+                }
+            }
+            else -> {}
         }
-    )
+    }
+
+    if (uiState is AuthUiState.Authenticated) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    } else {
+        AuthScreenContent(
+            uiState = uiState,
+            onLogin = { shadeId, mnemonic ->
+                viewModel.login(shadeId, mnemonic, "Android Device", "dummy_fcm")
+            },
+            onRegister = {
+                viewModel.register("Android Device", "dummy_fcm")
+            },
+            onResetUiState = {
+                viewModel.resetUiState()
+            },
+            onAuthSuccess = onAuthSuccess
+        )
+    }
 }
 
 @Composable
@@ -69,7 +93,8 @@ fun AuthScreenContent(
     uiState: AuthUiState,
     onLogin: (String, List<String>) -> Unit,
     onRegister: () -> Unit,
-    onResetUiState: () -> Unit
+    onResetUiState: () -> Unit,
+    onAuthSuccess: () -> Unit
 ) {
     var currentStep by rememberSaveable { mutableStateOf(AuthStep.WELCOME) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -141,7 +166,8 @@ fun AuthScreenContent(
                             uiState = uiState,
                             onRegister = onRegister,
                             onBack = { currentStep = AuthStep.WELCOME },
-                            snackbarHostState = snackbarHostState
+                            snackbarHostState = snackbarHostState,
+                            onAuthSuccess = onAuthSuccess
                         )
                     }
                 }
@@ -392,6 +418,7 @@ fun RegisterLayout(
     uiState: AuthUiState,
     onRegister: () -> Unit,
     onBack: () -> Unit,
+    onAuthSuccess: () -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -426,6 +453,16 @@ fun RegisterLayout(
             )
             
             Spacer(modifier = Modifier.height(48.dp))
+
+            Button(
+                onClick = {
+                    if (uiState is AuthUiState.Success) {
+                        onAuthSuccess()
+                    }
+                }
+            ) {
+                Text("I understand, Continue")
+            }
 
             if (uiState !is AuthUiState.Success) {
                 Button(
@@ -584,6 +621,7 @@ fun AuthScreenPreview() {
         uiState = AuthUiState.Idle,
         onLogin = { _, _ -> },
         onRegister = {},
-        onResetUiState = {}
+        onResetUiState = {},
+        onAuthSuccess = {}
     )
 }

@@ -11,7 +11,14 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.FirebaseMessaging
 import com.shade.app.crypto.AuthCryptoManager
@@ -23,12 +30,18 @@ import com.shade.app.domain.usecase.LoginUseCase
 import com.shade.app.domain.usecase.RegisterUseCase
 import com.shade.app.security.KeyVaultManager
 import com.shade.app.ui.auth.AuthScreen
-import com.shade.app.ui.auth.AuthViewModel
+import com.shade.app.ui.chat.ChatScreen
+import com.shade.app.ui.home.HomeScreen
+import com.shade.app.ui.navigation.Screen
 import com.shade.app.ui.theme.ShadeTheme
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
+import com.shade.app.ui.user.ProfileScreen
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
 
     private val requestNotificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
@@ -40,31 +53,13 @@ class MainActivity : ComponentActivity() {
 
         askNotificationPermission()
 
-        val retrofit = Retrofit.Builder()
-            .baseUrl(BuildConfig.API_URL)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-
-        val authService = retrofit.create(AuthService::class.java)
-
-        val repository = AuthRepositoryImpl(authService)
-        val authCrypto = AuthCryptoManager()
-        val messageCrypto = MessageCryptoManager()
-        val mnemonicManager = MnemonicManager()
-        val keyVault = KeyVaultManager(this)
-
-        val registerUseCase = RegisterUseCase(repository, authCrypto, messageCrypto)
-        val loginUseCase = LoginUseCase(repository, authCrypto)
-
-        val viewModel = AuthViewModel(registerUseCase, loginUseCase, keyVault, mnemonicManager)
-
         setContent {
             ShadeTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    AuthScreen(viewModel)
+                    AppNavigation()
                 }
             }
         }
@@ -89,6 +84,64 @@ class MainActivity : ComponentActivity() {
             ) {
                 requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
+        }
+    }
+}
+
+@Composable
+fun AppNavigation() {
+    val navController = rememberNavController()
+
+    NavHost(
+        navController = navController,
+        startDestination = Screen.Auth.route
+    ) {
+        composable(Screen.Auth.route) {
+            AuthScreen(
+                viewModel = hiltViewModel(),
+                onAuthSuccess = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Auth.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        composable(Screen.Home.route) {
+            HomeScreen(
+                onChatClick = { chatId, chatName ->
+                    navController.navigate(Screen.Chat.createRoute(chatId, chatName))
+                },
+                onNavigateToContacts = {
+                    // Rehber ekranı eklendiğinde buraya gelecek
+                }
+            )
+        }
+
+        composable(
+            route = Screen.Chat.route,
+            arguments = listOf(
+                navArgument("chatId") { type = NavType.StringType },
+                navArgument("chatName") { type = NavType.StringType }
+            )
+        ) {
+            ChatScreen(
+                onBackClick = {
+                    navController.popBackStack()
+                },
+                onProfileClick = { shadeId ->
+                    navController.navigate(Screen.Profile.createRoute(shadeId))
+                }
+            )
+        }
+
+        composable(
+            route = Screen.Profile.route,
+            arguments = listOf(navArgument("shadeId") { type = NavType.StringType })
+        ) {
+            ProfileScreen(
+                onBackClick = { navController.popBackStack() }
+            )
         }
     }
 }

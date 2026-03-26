@@ -22,4 +22,7 @@
     <string name="no_personal_data">No e-mail. No phone number.</string>
     <string name="free_anonymous">Creating account is free and anonymous.</string>
     <string name="id_copied">Shade ID copied to clipboard</string>
+    <string name="unknown_user">Unknown User</string>
+    <string name="unread_messages">Unread Messages</string>
+    <string name="user_not_found">User Not Found</string>
 </resources>

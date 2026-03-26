@@ -14,6 +14,7 @@ data class RegisterRequest(
 
 data class RegisterResponse(
     @SerializedName("core_guard_id") val shadeId: String,
+    @SerializedName("user_id") val userId: String,
     @SerializedName("message") val message: String
 )
 
@@ -36,6 +37,8 @@ data class LoginVerifyRequest(
 )
 
 data class LoginVerifyResponse(
+    @SerializedName("core_guard_id") val shadeId: String,
+    @SerializedName("user_id") val userId: String,
     @SerializedName("access_token") val accessToken: String,
     @SerializedName("message") val message: String
 )
