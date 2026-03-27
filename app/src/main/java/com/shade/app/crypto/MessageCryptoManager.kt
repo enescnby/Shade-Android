@@ -98,4 +98,34 @@ class MessageCryptoManager @Inject constructor() {
         return String(plainBytes, Charsets.UTF_8)
     }
 
+
+    fun encryptBytes(plainBytes: ByteArray, derivedKeyHex: String): Pair<ByteArray, ByteArray> {
+        val keyBytes = Hex.decode(derivedKeyHex)
+
+        val nonce = ByteArray(12)
+        SecureRandom().nextBytes(nonce)
+
+        val cipher = ChaCha20Poly1305()
+        cipher.init(true, ParametersWithIV(KeyParameter(keyBytes), nonce))
+
+        val cipherBytes = ByteArray(cipher.getOutputSize(plainBytes.size))
+        val len = cipher.processBytes(plainBytes, 0, plainBytes.size, cipherBytes, 0)
+        cipher.doFinal(cipherBytes, len)
+
+        return Pair(cipherBytes, nonce)
+    }
+
+    fun decryptBytes(cipherTextBytes: ByteArray, nonceBytes: ByteArray, derivedKeyHex: String): ByteArray {
+        val keyBytes = Hex.decode(derivedKeyHex)
+
+        val cipher = ChaCha20Poly1305()
+        cipher.init(false, ParametersWithIV(KeyParameter(keyBytes), nonceBytes))
+
+        val plainBytes = ByteArray(cipher.getOutputSize(cipherTextBytes.size))
+        val len = cipher.processBytes(cipherTextBytes, 0, cipherTextBytes.size, plainBytes, 0)
+        cipher.doFinal(plainBytes, len)
+
+        return plainBytes
+    }
+
 }

@@ -15,7 +15,10 @@ data class MessageEntity(
     val content: String,
 
     val timestamp: Long,
-    val status: MessageStatus
+    val status: MessageStatus,
+
+    val thumbnailPath: String? = null,
+    val imagePath: String? = null
 )
 
 enum class MessageType {

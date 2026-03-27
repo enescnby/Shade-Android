@@ -1,7 +1,12 @@
 package com.shade.app.ui.chat
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,22 +15,29 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.DoneAll
-import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.shade.app.R
 import com.shade.app.data.local.entities.MessageEntity
 import com.shade.app.data.local.entities.MessageStatus
+import com.shade.app.data.local.entities.MessageType
 import com.shade.app.ui.util.UiText
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -38,8 +50,15 @@ fun ChatScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var messageText by remember { mutableStateOf("") }
+    var fullScreenImagePath by remember { mutableStateOf<String?>(null) }
 
     val listState = rememberLazyListState()
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        uri?.let { viewModel.sendImage(it) }
+    }
 
     LaunchedEffect(uiState.messages.size) {
         if (listState.firstVisibleItemIndex <= 1){
@@ -61,6 +80,14 @@ fun ChatScreen(
                 }
             }
     }
+
+    fullScreenImagePath?.let { path ->
+        FullScreenImageViewer(
+            imagePath = path,
+            onDismiss = { fullScreenImagePath = null }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -110,7 +137,11 @@ fun ChatScreen(
                 ) { message ->
                     MessageItem(
                         message = message,
-                        isMe = message.senderId == uiState.myShadeId
+                        isMe = message.senderId == uiState.myShadeId,
+                        isDownloading = uiState.downloadingMessageId == message.messageId,
+                        downloadProgress = if (uiState.downloadingMessageId == message.messageId) uiState.downloadProgress else 0f,
+                        onImageClick = { path -> fullScreenImagePath = path },
+                        onDownloadClick = { viewModel.downloadImage(message) }
                     )
 
                     if (message.messageId == uiState.firstUnreadMessageId) {
@@ -125,6 +156,21 @@ fun ChatScreen(
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+
+                IconButton(
+                    onClick = {
+                        photoPickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    }
+                ) {
+                    Icon(
+                        Icons.Default.Image,
+                        contentDescription = "",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+
                 OutlinedTextField(
                     value = messageText,
                     onValueChange = { messageText = it },
@@ -152,7 +198,14 @@ fun ChatScreen(
 }
 
 @Composable
-fun MessageItem(message: MessageEntity, isMe: Boolean) {
+fun MessageItem(
+    message: MessageEntity,
+    isMe: Boolean,
+    isDownloading: Boolean = false,
+    downloadProgress: Float = 0f,
+    onImageClick: (String) -> Unit = {},
+    onDownloadClick: () -> Unit = {}
+) {
     val dateFormatter = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     val timeString = remember(message.timestamp) {
         dateFormatter.format(Date(message.timestamp))
@@ -172,28 +225,130 @@ fun MessageItem(message: MessageEntity, isMe: Boolean) {
                     )
                 )
                 .background(
-                    if (isMe) MaterialTheme.colorScheme.primary 
+                    if (isMe) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.secondaryContainer
                 )
-                .padding(horizontal = 12.dp, vertical = 8.dp)
                 .widthIn(max = 280.dp)
         ) {
-            Text(
-                text = message.content,
-                color = if (isMe) Color.White else MaterialTheme.colorScheme.onSecondaryContainer
-            )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.align(Alignment.End)
-            ) {
+            if (message.messageType == MessageType.IMAGE) {
+                Box(contentAlignment = Alignment.BottomEnd) {
+                    if (message.imagePath != null) {
+                        // Full quality image available
+                        AsyncImage(
+                            model = File(message.imagePath),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                                .clickable { onImageClick(message.imagePath) },
+                            contentScale = ContentScale.FillWidth
+                        )
+                    } else {
+                        // Show thumbnail with download overlay
+                        Box(
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (message.thumbnailPath != null) {
+                                AsyncImage(
+                                    model = File(message.thumbnailPath),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
+                                    contentScale = ContentScale.FillWidth,
+                                    alpha = 0.6f
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(150.dp)
+                                )
+                            }
+                            // Download button / progress overlay
+                            if (isDownloading) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(
+                                        progress = { downloadProgress },
+                                        modifier = Modifier.size(56.dp),
+                                        color = Color.White,
+                                        strokeWidth = 3.dp
+                                    )
+                                    Text(
+                                        text = "${(downloadProgress * 100).toInt()}%",
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
+                            } else {
+                                Surface(
+                                    onClick = onDownloadClick,
+                                    shape = RoundedCornerShape(50),
+                                    color = Color.Black.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(56.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            Icons.Default.ArrowDownward,
+                                            contentDescription = "Görseli indir",
+                                            modifier = Modifier.size(28.dp),
+                                            tint = Color.White
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Overlay timestamp and status for images
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier
+                            .padding(8.dp)
+                            .background(
+                                Color.Black.copy(alpha = 0.4f),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = timeString,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White,
+                        )
+                        if (isMe) {
+                            MessageStatusIcon(status = message.status, isImageOverlay = true)
+                        }
+                    }
+                }
+            }
+
+            if (message.messageType == MessageType.TEXT) {
                 Text(
-                text = timeString,
-                style = MaterialTheme.typography.labelSmall,
-                color = if (isMe) Color.White.copy(alpha = 0.7f) else Color.Gray,
-            )
-                if (isMe) {
-                    MessageStatusIcon(status = message.status)
+                    text = message.content,
+                    color = if (isMe) Color.White else MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                )
+            }
+
+            // For non-image messages, show status below
+            if (message.messageType != MessageType.IMAGE) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = timeString,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isMe) Color.White.copy(alpha = 0.7f) else Color.Gray,
+                    )
+                    if (isMe) {
+                        MessageStatusIcon(status = message.status)
+                    }
                 }
             }
         }
@@ -201,7 +356,7 @@ fun MessageItem(message: MessageEntity, isMe: Boolean) {
 }
 
 @Composable
-fun MessageStatusIcon(status: MessageStatus) {
+fun MessageStatusIcon(status: MessageStatus, isImageOverlay: Boolean = false) {
     val icon = when (status) {
         MessageStatus.PENDING -> Icons.Default.AccessTime
         MessageStatus.SENT -> Icons.Default.Check
@@ -211,7 +366,7 @@ fun MessageStatusIcon(status: MessageStatus) {
 
     val tint = when (status) {
         MessageStatus.READ -> Color(0xFF00B2FF)
-        else -> Color.White.copy(alpha = 0.7f)
+        else -> if (isImageOverlay) Color.White else Color.White.copy(alpha = 0.7f)
     }
 
     Icon(
@@ -241,5 +396,67 @@ fun UnreadMessagesHeader() {
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
         }
+    }
+}
+
+@Composable
+fun FullScreenImageViewer(
+    imagePath: String,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = Color.Black
+        ) {
+            ZoomableImage(
+                model = File(imagePath),
+                modifier = Modifier.fillMaxSize(),
+                onTap = onDismiss
+            )
+        }
+    }
+}
+
+@Composable
+fun ZoomableImage(
+    model: Any?,
+    modifier: Modifier = Modifier,
+    onTap: () -> Unit = {}
+) {
+    var scale by remember { mutableStateOf(1f) }
+    var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+
+    Box(
+        modifier = modifier
+            .pointerInput(Unit) {
+                detectTransformGestures { _, pan, zoom, _ ->
+                    scale = (scale * zoom).coerceIn(1f, 5f)
+                    offset += pan
+                }
+            }
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { onTap() })
+            }
+    ) {
+        AsyncImage(
+            model = model,
+            contentDescription = null,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer(
+                    scaleX = scale,
+                    scaleY = scale,
+                    translationX = offset.x,
+                    translationY = offset.y
+                ),
+            contentScale = ContentScale.Fit
+        )
     }
 }

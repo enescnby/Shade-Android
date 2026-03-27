@@ -1,5 +1,7 @@
 package com.shade.app.ui.chat
 
+import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,7 +10,9 @@ import com.shade.app.data.local.entities.MessageStatus
 import com.shade.app.data.local.entities.MessageType
 import com.shade.app.domain.repository.ChatRepository
 import com.shade.app.domain.repository.MessageRepository
+import com.shade.app.domain.usecase.message.DownloadImageUseCase
 import com.shade.app.domain.usecase.message.MarkChatAsReadUseCase
+import com.shade.app.domain.usecase.message.SendImageMessageUseCase
 import com.shade.app.domain.usecase.message.SendMessageUseCase
 import com.shade.app.security.KeyVaultManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -22,13 +26,17 @@ data class ChatUiState(
     val chatId: String = "",
     val myShadeId: String = "",
     val initialScrollIndex: Int? = null,
-    val firstUnreadMessageId: String? = null
+    val firstUnreadMessageId: String? = null,
+    val downloadingMessageId: String? = null,
+    val downloadProgress: Float = 0f
 )
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val messageRepository: MessageRepository,
     private val sendMessageUseCase: SendMessageUseCase,
+    private val sendImageMessageUseCase: SendImageMessageUseCase,
+    private val downloadImageUseCase: DownloadImageUseCase,
     private val markChatAsReadUseCase: MarkChatAsReadUseCase,
     private val chatRepository: ChatRepository,
     private val keyVaultManager: KeyVaultManager,
@@ -104,6 +112,27 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun sendImage(uri: Uri) {
+        viewModelScope.launch {
+            sendImageMessageUseCase(
+                receiverShadeId = chatId,
+                imageUri = uri
+            )
+        }
+    }
+
+    fun downloadImage(message: MessageEntity) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(downloadingMessageId = message.messageId, downloadProgress = 0f) }
+            val result = downloadImageUseCase(message) { progress ->
+                _uiState.update { it.copy(downloadProgress = progress) }
+            }
+            result.onFailure { e ->
+                Log.e("ChatViewModel", "Image download failed: ${e.message}", e)
+            }
+            _uiState.update { it.copy(downloadingMessageId = null, downloadProgress = 0f) }
+        }
+    }
     fun clearUnreadNotification() {
         _uiState.update { it.copy(firstUnreadMessageId = null) }
     }

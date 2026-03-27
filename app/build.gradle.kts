@@ -1,5 +1,4 @@
 import java.util.Properties
-import com.google.protobuf.gradle.*
 
 plugins {
     alias(libs.plugins.android.application)
@@ -125,4 +124,5 @@ dependencies {
 
     implementation(platform("com.google.firebase:firebase-bom:33.10.0"))
     implementation("com.google.firebase:firebase-messaging")
+    implementation("io.coil-kt:coil-compose:2.6.0")
 }

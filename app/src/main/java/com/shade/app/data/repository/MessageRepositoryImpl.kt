@@ -36,5 +36,9 @@ class MessageRepositoryImpl @Inject constructor(
         return webSocketManager.observeMessages()
     }
 
+    override suspend fun updateImagePath(messageId: String, path: String) {
+        messageDao.updateImagePath(messageId, path)
+    }
+
     override suspend fun deleteMessage(message: MessageEntity) = messageDao.deleteMessage(message)
 }

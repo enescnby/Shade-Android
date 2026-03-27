@@ -2,6 +2,7 @@ package com.shade.app.di
 
 import com.shade.app.BuildConfig
 import com.shade.app.data.remote.api.AuthService
+import com.shade.app.data.remote.api.MediaService
 import com.shade.app.data.remote.api.UserService
 import com.shade.app.data.remote.websocket.ShadeWebSocketManager
 import com.shade.app.data.remote.websocket.ShadeWebSocketManagerImpl
@@ -21,9 +22,10 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideRetrofit(): Retrofit {
+    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
         return Retrofit.Builder()
             .baseUrl(BuildConfig.API_URL)
+            .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }
@@ -46,10 +48,18 @@ object NetworkModule {
         return OkHttpClient.Builder()
             .pingInterval(Duration.ofSeconds(30))
             .connectTimeout(Duration.ofSeconds(15))
+            .readTimeout(Duration.ofSeconds(60))
+            .writeTimeout(Duration.ofSeconds(60))
             .build()
     }
 
     @Provides
     @Singleton
     fun provideWebSocketManager(impl: ShadeWebSocketManagerImpl): ShadeWebSocketManager = impl
+
+    @Provides
+    @Singleton
+    fun provideMediaService(retrofit: Retrofit): MediaService {
+        return retrofit.create(MediaService::class.java)
+    }
 }

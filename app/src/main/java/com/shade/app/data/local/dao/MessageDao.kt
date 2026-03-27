@@ -23,6 +23,8 @@ interface MessageDao{
     @Query("UPDATE messages SET status = :status WHERE messageId = :messageId")
     suspend fun updateMessageStatus(messageId: String, status: MessageStatus)
 
+    @Query("UPDATE messages SET imagePath = :path WHERE messageId = :messageId")
+    suspend fun updateImagePath(messageId: String, path: String)
     @Delete
     suspend fun deleteMessage(message: MessageEntity)
 }
