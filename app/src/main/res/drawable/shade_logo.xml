@@ -1,0 +1,53 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="130dp"
+    android:height="120dp"
+    android:viewportWidth="130"
+    android:viewportHeight="120">
+
+    <!-- Ghost body with gradient -->
+    <path android:pathData="M30,55 Q30,20 65,18 Q100,20 100,55 L100,105 Q92,97 85,105 Q78,113 72,105 Q65,97 58,105 Q51,113 44,105 Q37,97 30,105 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="65"
+                android:startY="18"
+                android:endX="65"
+                android:endY="105">
+                <item android:color="#FF7B6FD4" android:offset="0.0" />
+                <item android:color="#FF4A3FA0" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Eye white left -->
+    <path
+        android:pathData="M43,56 a7,8 0 1,0 14,0 a7,8 0 1,0 -14,0 Z"
+        android:fillColor="#F0ECFF" />
+
+    <!-- Eye white right -->
+    <path
+        android:pathData="M73,56 a7,8 0 1,0 14,0 a7,8 0 1,0 -14,0 Z"
+        android:fillColor="#F0ECFF" />
+
+    <!-- Pupil left -->
+    <path
+        android:pathData="M47.5,57 a3.5,3.5 0 1,0 7,0 a3.5,3.5 0 1,0 -7,0 Z"
+        android:fillColor="#2A1F6B" />
+
+    <!-- Pupil right -->
+    <path
+        android:pathData="M77.5,57 a3.5,3.5 0 1,0 7,0 a3.5,3.5 0 1,0 -7,0 Z"
+        android:fillColor="#2A1F6B" />
+
+    <!-- Highlight left -->
+    <path
+        android:pathData="M51.3,55 a1.2,1.2 0 1,0 2.4,0 a1.2,1.2 0 1,0 -2.4,0 Z"
+        android:fillColor="#FAF9FF" />
+
+    <!-- Highlight right -->
+    <path
+        android:pathData="M81.3,55 a1.2,1.2 0 1,0 2.4,0 a1.2,1.2 0 1,0 -2.4,0 Z"
+        android:fillColor="#FAF9FF" />
+
+</vector>
