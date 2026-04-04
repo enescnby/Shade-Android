@@ -17,6 +17,8 @@ import com.shade.app.domain.repository.ChatRepository
 import com.shade.app.domain.repository.ContactRepository
 import com.shade.app.domain.repository.MessageRepository
 import com.shade.app.security.KeyVaultManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.shade.app.ui.util.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -41,7 +43,8 @@ sealed class LookupUiState {
 class HomeViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val contactRepository: ContactRepository,
-    private val messageListener: MessageListener
+    private val messageListener: MessageListener,
+    private val keyVaultManager: KeyVaultManager
 ) : ViewModel() {
 
     companion object {
@@ -52,6 +55,8 @@ class HomeViewModel @Inject constructor(
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
     private val _lookupState = MutableStateFlow<LookupUiState>(LookupUiState.Idle)
     val lookupState: StateFlow<LookupUiState> = _lookupState.asStateFlow()
+    private val _loggedOut = MutableStateFlow(false)
+    val loggedOut: StateFlow<Boolean> = _loggedOut.asStateFlow()
 
     init {
         Log.d(TAG, "HomeViewModel başlatıldı")
@@ -101,6 +106,17 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             chatRepository.deleteChat(chat.chat.chatId)
             Log.d(TAG, "Sohbet silindi: ${chat.chat.chatId}")
+        }
+    }
+
+    fun logout() {
+        Log.d(TAG, "Çıkış yapılıyor...")
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                keyVaultManager.clearVault()
+            }
+            _loggedOut.value = true
+            Log.d(TAG, "Çıkış tamamlandı")
         }
     }
 

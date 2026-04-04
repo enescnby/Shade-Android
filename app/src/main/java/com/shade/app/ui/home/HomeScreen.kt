@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,10 +30,16 @@ private const val TAG = "SHADE_HOME"
 fun HomeScreen(
     onChatClick: (String, String) -> Unit,
     onNavigateToContacts: () -> Unit,
+    onLogout: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val lookupState by viewModel.lookupState.collectAsState()
+    val loggedOut by viewModel.loggedOut.collectAsState()
+
+    LaunchedEffect(loggedOut) {
+        if (loggedOut) onLogout()
+    }
 
     var showLookupDialog by remember { mutableStateOf(false) }
     var shadeIdInput by remember { mutableStateOf("") }
@@ -130,6 +137,15 @@ fun HomeScreen(
                         Icon(
                             imageVector = Icons.Default.People,
                             contentDescription = "Kişiler"
+                        )
+                    }
+                    IconButton(onClick = {
+                        Log.d(TAG, "Çıkış butonuna tıklandı")
+                        viewModel.logout()
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.ExitToApp,
+                            contentDescription = "Çıkış Yap"
                         )
                     }
                 }

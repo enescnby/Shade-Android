@@ -117,6 +117,12 @@ fun AppNavigation() {
                 onNavigateToContacts = {
                     Log.d(TAG, "Home → Contacts ekranına geçiliyor")
                     navController.navigate(Screen.Contacts.route)
+                },
+                onLogout = {
+                    Log.d(TAG, "Çıkış yapıldı → Auth ekranına dönülüyor")
+                    navController.navigate(Screen.Auth.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
                 }
             )
         }
