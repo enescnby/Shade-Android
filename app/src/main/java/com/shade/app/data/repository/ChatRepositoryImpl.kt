@@ -28,6 +28,17 @@ class ChatRepositoryImpl @Inject constructor(
         chatDao.resetUnreadCount(chatId)
     }
 
+    override suspend fun updateLastMessage(
+        chatId: String,
+        lastMessage: String,
+        timestamp: Long
+    ) {
+        val updatedRows = chatDao.updateLastMessage(chatId, lastMessage, timestamp)
+        if (updatedRows == 0) {
+            chatDao.insertOrUpdateChat(ChatEntity(chatId, lastMessage, timestamp, 0))
+        }
+    }
+
     override suspend fun updateChatWithNewMessage(
         chatId: String,
         lastMessage: String,

@@ -61,7 +61,7 @@ class SendMessageUseCase @Inject constructor(
         )
 
         messageRepository.insertMessage(entity)
-        chatRepository.updateChatWithNewMessage(
+        chatRepository.updateLastMessage(
             chatId = receiverShadeId,
             lastMessage = content,
             timestamp = ts

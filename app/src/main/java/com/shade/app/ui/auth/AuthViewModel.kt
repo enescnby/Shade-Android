@@ -2,6 +2,7 @@ package com.shade.app.ui.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.messaging.FirebaseMessaging
 import com.shade.app.R
 import com.shade.app.crypto.MnemonicManager
 import com.shade.app.domain.usecase.auth.LoginUseCase
@@ -12,6 +13,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 sealed class AuthUiState {
@@ -35,9 +37,11 @@ class AuthViewModel @Inject constructor(
 ): ViewModel() {
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val uiState: StateFlow<AuthUiState> = _uiState
+    private var fcmToken = ""
 
     init {
         checkAuthStatus()
+        fetchFcmToken()
     }
 
     private fun checkAuthStatus() {
@@ -51,7 +55,17 @@ class AuthViewModel @Inject constructor(
         _uiState.value = AuthUiState.Idle
     }
 
-    fun register(deviceModel: String, fcmToken: String) {
+    private fun fetchFcmToken() {
+        viewModelScope.launch {
+            try {
+                fcmToken = FirebaseMessaging.getInstance().token.await()
+            } catch (e: Exception) {
+                fcmToken = ""
+            }
+        }
+    }
+
+    fun register(deviceModel: String) {
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
 
@@ -70,7 +84,7 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    fun login(shadeId: String, mnemonic: List<String>, deviceModel: String, fcmToken: String) {
+    fun login(shadeId: String, mnemonic: List<String>, deviceModel: String) {
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
             val result = loginUseCase(shadeId, mnemonic, deviceModel, fcmToken)

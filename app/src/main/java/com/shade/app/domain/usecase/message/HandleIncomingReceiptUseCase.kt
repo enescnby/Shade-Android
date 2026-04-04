@@ -16,6 +16,6 @@ class HandleIncomingReceiptUseCase @Inject constructor(
             else -> MessageStatus.SENT
         }
 
-        messageRepository.updateMessageStatus(receipt.messageId, newStatus)
+        messageRepository.updateMessageStatusIfForward(receipt.messageId, newStatus)
     }
 }

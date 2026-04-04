@@ -3,10 +3,12 @@ package com.shade.app.di
 import com.shade.app.data.repository.AuthRepositoryImpl
 import com.shade.app.data.repository.ChatRepositoryImpl
 import com.shade.app.data.repository.ContactRepositoryImpl
+import com.shade.app.data.repository.ImageRepositoryImpl
 import com.shade.app.data.repository.MessageRepositoryImpl
 import com.shade.app.domain.repository.AuthRepository
 import com.shade.app.domain.repository.ChatRepository
 import com.shade.app.domain.repository.ContactRepository
+import com.shade.app.domain.repository.ImageRepository
 import com.shade.app.domain.repository.MessageRepository
 import dagger.Binds
 import dagger.Module
@@ -41,4 +43,10 @@ abstract class RepositoryModule {
     abstract fun bindContactRepository(
         contactRepositoryImpl: ContactRepositoryImpl
     ): ContactRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindImageRepository(
+        imageRepositoryImpl: ImageRepositoryImpl
+    ): ImageRepository
 }

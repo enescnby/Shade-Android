@@ -13,17 +13,27 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-    primary = ElectricPurple,
-    secondary = SoftPurple,
-    tertiary = AccentPurple,
-    background = DarkBlack,
-    surface = DeepPurple,
+    primary = AccentPurple,
     onPrimary = Color.White,
+    primaryContainer = SoftPurple,
+    onPrimaryContainer = LightPurple,
+    secondary = NeonPurple,
     onSecondary = Color.White,
-    onBackground = Color.White,
-    onSurface = Color.White,
-    primaryContainer = DeepPurple,
-    onPrimaryContainer = AccentPurple
+    secondaryContainer = BubbleOther,
+    onSecondaryContainer = TextPrimary,
+    tertiary = CyanAccent,
+    onTertiary = Color.Black,
+    background = RichBlack,
+    onBackground = TextPrimary,
+    surface = SurfaceDark,
+    onSurface = TextPrimary,
+    surfaceVariant = SurfaceElevated,
+    onSurfaceVariant = TextSecondary,
+    surfaceContainerHigh = SurfaceContainer,
+    outline = OutlineMuted,
+    outlineVariant = DividerDark,
+    error = ErrorRed,
+    onError = Color.White
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -40,7 +50,7 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun ShadeTheme(
-    darkTheme: Boolean = true, // Force dark theme for the "black and purple" look
+    darkTheme: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
@@ -49,7 +59,9 @@ fun ShadeTheme(
         SideEffect {
             val window = (view.context as Activity).window
             window.statusBarColor = colorScheme.background.toArgb()
+            window.navigationBarColor = colorScheme.background.toArgb()
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !darkTheme
         }
     }
 

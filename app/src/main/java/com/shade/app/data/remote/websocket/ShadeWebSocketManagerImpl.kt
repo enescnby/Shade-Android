@@ -3,11 +3,20 @@ package com.shade.app.data.remote.websocket
 import android.util.Log
 import com.shade.app.proto.WebSocketMessage
 import com.shade.app.security.KeyVaultManager
+import com.shade.app.util.ConnectivityObserver
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -20,11 +29,19 @@ import javax.inject.Singleton
 @Singleton
 class ShadeWebSocketManagerImpl @Inject constructor(
     private val client: OkHttpClient,
-    private val keyVaultManager: KeyVaultManager
+    private val keyVaultManager: KeyVaultManager,
+    private val connectivityObserver: ConnectivityObserver
 ) : ShadeWebSocketManager, WebSocketListener() {
 
     private var webSocket: WebSocket? = null
+    private var lastUrl: String? = null
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val TAG = "ShadeWS"
+
+    private var retryCount = 0
+    private val maxRetryCount = 5
+    private val baseDelayMs = 1000L
+    private var retryJob: Job? = null
 
     private val _messages = MutableSharedFlow<WebSocketMessage>(
         extraBufferCapacity = 64,
@@ -33,12 +50,38 @@ class ShadeWebSocketManagerImpl @Inject constructor(
 
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
 
-    override fun connect(url: String) {
-        if (_connectionState.value == ConnectionState.CONNECTED) return
+    private fun observeConnectivity() {
+        connectivityObserver.status.onEach { status ->
+            Log.d(TAG, "Network state: $status")
+            when (status) {
+                ConnectivityObserver.Status.Available -> {
+                    if (_connectionState.value == ConnectionState.ERROR ||
+                        _connectionState.value == ConnectionState.DISCONNECTED) {
+                        lastUrl?.let { reconnect(it) }
+                    }
+                }
 
+                ConnectivityObserver.Status.Lost,
+                ConnectivityObserver.Status.Unavailable -> {
+                    _connectionState.value = ConnectionState.DISCONNECTED
+                }
+                else -> {}
+            }
+        }.launchIn(scope)
+    }
+
+    private fun reconnect(url: String) {
+        retryCount = 0
+        retryJob?.cancel()
+        webSocket?.cancel()
+        webSocket = null
+        performConnect(url)
+    }
+
+    private fun performConnect(url: String) {
         val token = keyVaultManager.getAccessToken() ?: ""
         if (token.isEmpty()) {
-            Log.e(TAG, "Connect iptal: Token bulunamadı!")
+            Log.e(TAG, "Connection cancelled: Token not found")
             return
         }
 
@@ -48,14 +91,44 @@ class ShadeWebSocketManagerImpl @Inject constructor(
             "$url?token=$token"
         }
 
-        Log.d(TAG, "Bağlanılıyor: $socketUrl")
+        Log.d(TAG, "Connecting: $socketUrl")
         val request = Request.Builder().url(socketUrl).build()
         _connectionState.value = ConnectionState.CONNECTING
         webSocket = client.newWebSocket(request, this)
     }
 
+    private fun scheduleRetry() {
+        if (retryCount > maxRetryCount) {
+            Log.w(TAG, "Reached to the maximum retry count ($maxRetryCount)")
+            return
+        }
+
+        val delay = baseDelayMs * (1L shl retryCount.coerceAtMost(4))
+        retryCount++
+
+        Log.d(TAG, "Retry #$retryCount, will retry after $delay ms")
+
+        retryJob?.cancel()
+        retryJob = scope.launch {
+            delay(delay)
+            lastUrl?.let { performConnect(it) }
+        }
+    }
+
+    override fun connect(url: String) {
+        if (_connectionState.value == ConnectionState.CONNECTED) return
+
+        lastUrl = url
+        retryCount = 0
+        retryJob?.cancel()
+        performConnect(url)
+    }
+
     override fun disconnect() {
-        Log.d(TAG, "Bağlantı kesiliyor...")
+        Log.d(TAG, "Connection is closing...")
+        retryJob?.cancel()
+        retryCount = 0
+        lastUrl = null
         webSocket?.close(1000, "User disconnected")
         webSocket = null
         _connectionState.value = ConnectionState.DISCONNECTED
@@ -90,10 +163,17 @@ class ShadeWebSocketManagerImpl @Inject constructor(
     override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
         Log.w(TAG, "Bağlantı Kapanıyor: $code / $reason")
         _connectionState.value = ConnectionState.DISCONNECTED
+        this.webSocket = null
+
+        if (code != 1000) {
+            scheduleRetry()
+        }
     }
 
     override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
         Log.e(TAG, "WebSocket HATASI: ${t.message}", t)
         _connectionState.value = ConnectionState.ERROR
+        this.webSocket = null
+        scheduleRetry()
     }
 }

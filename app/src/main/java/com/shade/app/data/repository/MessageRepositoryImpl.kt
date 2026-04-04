@@ -36,5 +36,20 @@ class MessageRepositoryImpl @Inject constructor(
         return webSocketManager.observeMessages()
     }
 
+    override suspend fun updateImagePath(messageId: String, path: String) {
+        messageDao.updateImagePath(messageId, path)
+    }
+
+    override suspend fun getMessageStatus(messageId: String): MessageStatus? {
+        return messageDao.getMessageStatus(messageId)
+    }
+
+    override suspend fun updateMessageStatusIfForward(messageId: String, newStatus: MessageStatus) {
+        val currentStatus = messageDao.getMessageStatus(messageId) ?: return
+        if (newStatus.ordinal > currentStatus.ordinal) {
+            messageDao.updateMessageStatus(messageId, newStatus)
+        }
+    }
+
     override suspend fun deleteMessage(message: MessageEntity) = messageDao.deleteMessage(message)
 }

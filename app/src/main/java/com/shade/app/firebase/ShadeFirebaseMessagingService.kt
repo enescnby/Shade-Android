@@ -8,37 +8,89 @@ import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OutOfQuotaPolicy
+import androidx.work.WorkManager
+import com.shade.app.data.remote.websocket.MessageListener
+import com.shade.app.domain.usecase.message.FetchUndeliveredMessagesUseCase
+import com.shade.app.security.KeyVaultManager
+import com.shade.app.worker.FetchMessagesWorker
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlin.random.Random
 
 class ShadeFirebaseMessagingService : FirebaseMessagingService() {
 
+    @EntryPoint
+    @InstallIn(SingletonComponent::class)
+    interface FirebaseServiceEntryPoint {
+        fun keyVaultManager(): KeyVaultManager
+    }
+
+    private fun getEntryPoint(): FirebaseServiceEntryPoint {
+        return EntryPointAccessors.fromApplication(
+            applicationContext,
+            FirebaseServiceEntryPoint::class.java
+        )
+    }
+
     override fun onNewToken(token: String) {
         super.onNewToken(token)
         Log.d("FCM", "New token: $token")
+        getEntryPoint().keyVaultManager().saveFcmToken(token)
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
 
-        val title = message.notification?.title ?: "Shade"
-        val body = message.notification?.body ?: message.data["message"] ?: "New message"
+        val type = message.data["type"]
 
-        showNotification(title, body)
+        when (type) {
+            "NEW_ENCRYPTED_MESSAGE" -> {
+                Log.d("FCM", "Wake-up signal received, enqueuing fetch worker...")
+                val constraints = Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+                val request = OneTimeWorkRequestBuilder<FetchMessagesWorker>()
+                    .setConstraints(constraints)
+                    .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                    .build()
+                WorkManager.getInstance(applicationContext)
+                    .enqueueUniqueWork(
+                        "fetch_undelivered_messages",
+                        ExistingWorkPolicy.REPLACE,
+                        request
+                    )
+            }
+            else -> {
+                val title = message.notification?.title ?: "Shade"
+                val body = message.notification?.body ?: message.data["message"] ?: "New Message"
+                showNotification(title, body)
+            }
+        }
     }
     private fun showNotification(title: String, body: String) {
         val channelId = "shade_notifications"
 
         val notificationManager =
-            getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            getSystemService(NOTIFICATION_SERVICE) as NotificationManager
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                "Shade Notifications",
-                NotificationManager.IMPORTANCE_HIGH
-            )
-            notificationManager.createNotificationChannel(channel)
-        }
+        val channel = NotificationChannel(
+            channelId,
+            "Shade Notifications",
+            NotificationManager.IMPORTANCE_HIGH
+        )
+        notificationManager.createNotificationChannel(channel)
 
         val notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle(title)

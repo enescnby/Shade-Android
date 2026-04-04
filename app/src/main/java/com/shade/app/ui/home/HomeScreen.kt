@@ -4,8 +4,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,8 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.shade.app.data.local.entities.ChatEntity
 import com.shade.app.data.local.model.ChatWithContact
+import com.shade.app.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -29,7 +32,7 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val lookupState by viewModel.lookupState.collectAsState()
-    
+
     var showLookupDialog by remember { mutableStateOf(false) }
     var shadeIdInput by remember { mutableStateOf("") }
 
@@ -43,30 +46,49 @@ fun HomeScreen(
 
     if (showLookupDialog) {
         AlertDialog(
-            onDismissRequest = { 
+            onDismissRequest = {
                 viewModel.resetLookupState()
             },
-            title = { Text("Yeni Mesaj") },
+            containerColor = SurfaceElevated,
+            shape = RoundedCornerShape(24.dp),
+            title = {
+                Text(
+                    "Yeni Mesaj",
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+            },
             text = {
                 Column {
                     Text(
-                        text = "Mesaj göndermek istediğin kişinin Shade ID'sini gir kanka.",
-                        style = MaterialTheme.typography.bodyMedium
+                        text = "Mesaj göndermek istediğin kişinin Shade ID'sini gir.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     OutlinedTextField(
                         value = shadeIdInput,
                         onValueChange = { shadeIdInput = it },
                         label = { Text("Shade ID") },
-                        placeholder = { Text("Örn: CG-####-####") },
+                        placeholder = { Text("Örn: CG-####-####", color = TextMuted) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        isError = lookupState is LookupUiState.Error
+                        shape = RoundedCornerShape(14.dp),
+                        isError = lookupState is LookupUiState.Error,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AccentPurple,
+                            unfocusedBorderColor = OutlineMuted,
+                            focusedLabelColor = AccentPurple,
+                            unfocusedLabelColor = TextMuted,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            cursorColor = AccentPurple
+                        )
                     )
                     if (lookupState is LookupUiState.Error) {
                         Text(
                             text = (lookupState as LookupUiState.Error).message.asString(),
-                            color = MaterialTheme.colorScheme.error,
+                            color = ErrorRed,
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(top = 4.dp)
                         )
@@ -76,7 +98,11 @@ fun HomeScreen(
             confirmButton = {
                 Button(
                     onClick = { viewModel.startLookup(shadeIdInput, onChatClick) },
-                    enabled = shadeIdInput.isNotBlank() && lookupState !is LookupUiState.Loading
+                    enabled = shadeIdInput.isNotBlank() && lookupState !is LookupUiState.Loading,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AccentPurple
+                    )
                 ) {
                     if (lookupState is LookupUiState.Loading) {
                         CircularProgressIndicator(
@@ -85,27 +111,50 @@ fun HomeScreen(
                             color = Color.White
                         )
                     } else {
-                        Text("Ara ve Başlat")
+                        Text("Ara ve Başlat", fontWeight = FontWeight.Medium)
                     }
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showLookupDialog = false }) {
-                    Text("İptal")
+                    Text("İptal", color = TextSecondary)
                 }
             }
         )
     }
 
     Scaffold(
+        containerColor = RichBlack,
         topBar = {
-            TopAppBar(
-                title = { Text("Shade") }
-            )
+            Surface(
+                color = SurfaceDark,
+                shadowElevation = 2.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Shade",
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                }
+            }
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showLookupDialog = true }) {
-                Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = "Yeni Mesaj")
+            FloatingActionButton(
+                onClick = { showLookupDialog = true },
+                containerColor = AccentPurple,
+                contentColor = Color.White,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.navigationBarsPadding()
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Yeni Mesaj")
             }
         }
     ) { paddingValues ->
@@ -115,15 +164,38 @@ fun HomeScreen(
                 .padding(paddingValues)
         ) {
             if (uiState.isLoading && uiState.chats.isEmpty()) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (uiState.chats.isEmpty()) {
-                Text(
-                    text = "Henüz mesajın yok. Karanlıkta bir ışık yak!",
+                CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
-                    style = MaterialTheme.typography.bodyMedium
+                    color = AccentPurple
                 )
+            } else if (uiState.chats.isEmpty()) {
+                Column(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Chat,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = TextMuted
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Henüz mesajın yok",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = TextSecondary
+                    )
+                    Text(
+                        text = "Karanlıkta bir ışık yak!",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextMuted
+                    )
+                }
             } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(vertical = 4.dp)
+                ) {
                     items(uiState.chats, key = { it.displayName }) { chat ->
                         ChatItem(
                             chat = chat,
@@ -131,11 +203,6 @@ fun HomeScreen(
                                 onChatClick(chat.chat.chatId, chat.displayName)
                             },
                             onDelete = { viewModel.deleteChat(chat) }
-                        )
-                        HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                            thickness = 0.5.dp,
-                            color = MaterialTheme.colorScheme.outlineVariant
                         )
                     }
                 }
@@ -145,7 +212,9 @@ fun HomeScreen(
                 Snackbar(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(16.dp)
+                        .padding(16.dp),
+                    containerColor = SurfaceElevated,
+                    contentColor = TextPrimary
                 ) {
                     Text(error)
                 }
@@ -160,64 +229,84 @@ fun ChatItem(
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onClick,
+        color = Color.Transparent
     ) {
-        Surface(
-            modifier = Modifier.size(50.dp),
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.primaryContainer
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = chat.displayName.take(1).uppercase(),
-                    style = MaterialTheme.typography.titleMedium
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.width(16.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+            // Avatar with gradient
+            Surface(
+                modifier = Modifier.size(52.dp),
+                shape = CircleShape,
+                color = BubbleMine
             ) {
-                Text(
-                    text = chat.displayName,
-                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = formatTimestamp(chat.chat.lastMessageTimestamp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = chat.displayName.take(1).uppercase(),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.width(14.dp))
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = chat.chat.lastMessage ?: "Mesaj yok",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = chat.displayName,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    Text(
+                        text = formatTimestamp(chat.chat.lastMessageTimestamp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (chat.chat.unreadCount > 0) AccentPurple else TextMuted
+                    )
+                }
 
-                if (chat.chat.unreadCount > 0) {
-                    Badge(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 8.dp)
-                    ) {
-                        Text(chat.chat.unreadCount.toString())
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = chat.chat.lastMessage ?: "Mesaj yok",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    if (chat.chat.unreadCount > 0) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = CircleShape,
+                            color = AccentPurple,
+                            modifier = Modifier.size(22.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = chat.chat.unreadCount.toString(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -227,6 +316,15 @@ fun ChatItem(
 
 private fun formatTimestamp(timestamp: Long): String {
     val date = Date(timestamp)
-    val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
-    return sdf.format(date)
+    val now = Calendar.getInstance()
+    val msgCal = Calendar.getInstance().apply { time = date }
+
+    return if (now.get(Calendar.DATE) == msgCal.get(Calendar.DATE) &&
+        now.get(Calendar.MONTH) == msgCal.get(Calendar.MONTH) &&
+        now.get(Calendar.YEAR) == msgCal.get(Calendar.YEAR)
+    ) {
+        SimpleDateFormat("HH:mm", Locale.getDefault()).format(date)
+    } else {
+        SimpleDateFormat("dd MMM", Locale.getDefault()).format(date)
+    }
 }

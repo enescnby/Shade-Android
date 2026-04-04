@@ -24,7 +24,9 @@ class KeyVaultManager @Inject constructor(
         val X25519_PRIVATE_KEY = stringPreferencesKey("X25519_PRIVATE_KEY")
         val JWT_ACCESS_TOKEN = stringPreferencesKey("JWT_ACCESS_TOKEN")
         val SHADE_ID = stringPreferencesKey("SHADE_ID")
-        val USER_ID = stringPreferencesKey("USER_ID") // Yeni eklendi
+        val USER_ID = stringPreferencesKey("USER_ID")
+
+        val FCM_TOKEN = stringPreferencesKey("FCM_TOKEN")
     }
 
     private fun saveValue(key: androidx.datastore.preferences.core.Preferences.Key<String>, value: String) {
@@ -62,8 +64,11 @@ class KeyVaultManager @Inject constructor(
     fun saveShadeId(shadeId: String) = saveValue(Keys.SHADE_ID, shadeId)
     fun getShadeId(): String? = getValue(Keys.SHADE_ID)
 
-    fun saveUserId(userId: String) = saveValue(Keys.USER_ID, userId) // Yeni eklendi
-    fun getUserId(): String? = getValue(Keys.USER_ID) // Yeni eklendi
+    fun saveUserId(userId: String) = saveValue(Keys.USER_ID, userId)
+    fun getUserId(): String? = getValue(Keys.USER_ID)
+
+    fun saveFcmToken(token: String) = saveValue(Keys.FCM_TOKEN, token)
+    fun getFcmToken(): String? = getValue(Keys.FCM_TOKEN)
 
     fun clearVault() {
         runBlocking {
