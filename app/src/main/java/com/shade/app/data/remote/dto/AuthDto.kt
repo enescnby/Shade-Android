@@ -14,7 +14,7 @@ data class RegisterRequest(
 
 data class RegisterResponse(
     @SerializedName("core_guard_id") val shadeId: String,
-    @SerializedName("user_id") val userId: String,
+    @SerializedName("user_id") val userId: String?,
     @SerializedName("message") val message: String
 )
 

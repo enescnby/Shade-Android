@@ -1,11 +1,13 @@
 package com.shade.app.ui.home
 
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,6 +22,8 @@ import com.shade.app.data.local.model.ChatWithContact
 import java.text.SimpleDateFormat
 import java.util.*
 
+private const val TAG = "SHADE_HOME"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -29,9 +33,19 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val lookupState by viewModel.lookupState.collectAsState()
-    
+
     var showLookupDialog by remember { mutableStateOf(false) }
     var shadeIdInput by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        Log.d(TAG, "HomeScreen açıldı")
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            Log.d(TAG, "HomeScreen kapandı")
+        }
+    }
 
     LaunchedEffect(lookupState) {
         if (lookupState is LookupUiState.Success) {
@@ -43,7 +57,8 @@ fun HomeScreen(
 
     if (showLookupDialog) {
         AlertDialog(
-            onDismissRequest = { 
+            onDismissRequest = {
+                Log.d(TAG, "Yeni mesaj dialogu kapatıldı")
                 viewModel.resetLookupState()
             },
             title = { Text("Yeni Mesaj") },
@@ -75,7 +90,10 @@ fun HomeScreen(
             },
             confirmButton = {
                 Button(
-                    onClick = { viewModel.startLookup(shadeIdInput, onChatClick) },
+                    onClick = {
+                        Log.d(TAG, "Ara ve Başlat butonuna tıklandı: $shadeIdInput")
+                        viewModel.startLookup(shadeIdInput, onChatClick)
+                    },
                     enabled = shadeIdInput.isNotBlank() && lookupState !is LookupUiState.Loading
                 ) {
                     if (lookupState is LookupUiState.Loading) {
@@ -90,7 +108,10 @@ fun HomeScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showLookupDialog = false }) {
+                TextButton(onClick = {
+                    Log.d(TAG, "Yeni mesaj dialogu İptal ile kapatıldı")
+                    showLookupDialog = false
+                }) {
                     Text("İptal")
                 }
             }
@@ -100,11 +121,25 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Shade") }
+                title = { Text("Shade") },
+                actions = {
+                    IconButton(onClick = {
+                        Log.d(TAG, "Kişiler butonuna tıklandı → Contacts ekranına geçiliyor")
+                        onNavigateToContacts()
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.People,
+                            contentDescription = "Kişiler"
+                        )
+                    }
+                }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showLookupDialog = true }) {
+            FloatingActionButton(onClick = {
+                Log.d(TAG, "Yeni mesaj FAB tıklandı → dialog açılıyor")
+                showLookupDialog = true
+            }) {
                 Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = "Yeni Mesaj")
             }
         }
@@ -128,9 +163,13 @@ fun HomeScreen(
                         ChatItem(
                             chat = chat,
                             onClick = {
+                                Log.d(TAG, "Sohbete tıklandı: chatId=${chat.chat.chatId}, name=${chat.displayName}")
                                 onChatClick(chat.chat.chatId, chat.displayName)
                             },
-                            onDelete = { viewModel.deleteChat(chat) }
+                            onDelete = {
+                                Log.d(TAG, "Sohbet silme: chatId=${chat.chat.chatId}")
+                                viewModel.deleteChat(chat)
+                            }
                         )
                         HorizontalDivider(
                             modifier = Modifier.padding(horizontal = 16.dp),

@@ -1,11 +1,11 @@
 package com.shade.app.ui.chat
 
+import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shade.app.data.local.entities.MessageEntity
 import com.shade.app.data.local.entities.MessageStatus
-import com.shade.app.data.local.entities.MessageType
 import com.shade.app.domain.repository.ChatRepository
 import com.shade.app.domain.repository.MessageRepository
 import com.shade.app.domain.usecase.message.MarkChatAsReadUseCase
@@ -22,7 +22,8 @@ data class ChatUiState(
     val chatId: String = "",
     val myShadeId: String = "",
     val initialScrollIndex: Int? = null,
-    val firstUnreadMessageId: String? = null
+    val firstUnreadMessageId: String? = null,
+    val isSendingImage: Boolean = false
 )
 
 @HiltViewModel
@@ -35,12 +36,16 @@ class ChatViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
+    companion object {
+        private const val TAG = "SHADE_CHAT"
+    }
+
     private val chatId: String = savedStateHandle["chatId"] ?: ""
     private val initialChatName: String = savedStateHandle["chatName"] ?: ""
 
     private val _uiState = MutableStateFlow(
         ChatUiState(
-            chatId = chatId, 
+            chatId = chatId,
             chatName = initialChatName,
             myShadeId = keyVaultManager.getShadeId() ?: ""
         )
@@ -48,7 +53,9 @@ class ChatViewModel @Inject constructor(
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
     private var hasCalculatedInitialScroll = false
+
     init {
+        Log.d(TAG, "ChatViewModel başlatıldı: chatId=$chatId")
         observeMessages()
         observeChatDetails()
     }
@@ -56,22 +63,23 @@ class ChatViewModel @Inject constructor(
     private fun observeMessages() {
         messageRepository.getMessagesForChat(chatId)
             .onEach { messages ->
+                Log.d(TAG, "Mesaj listesi güncellendi: ${messages.size} mesaj")
                 val myId = _uiState.value.myShadeId
-                if (!hasCalculatedInitialScroll && messages.isNotEmpty()) {
 
+                if (!hasCalculatedInitialScroll && messages.isNotEmpty()) {
                     val firstUnreadIdx = messages.indexOfFirst {
                         it.senderId != myId && it.status != MessageStatus.READ
                     }
-
                     if (firstUnreadIdx != -1) {
                         val firstUnreadMessageId = messages[firstUnreadIdx].messageId
                         val reversedIndex = (messages.size - 1 - firstUnreadIdx) + 1
-                        _uiState.update { it.copy(
-                            initialScrollIndex = reversedIndex,
-                            firstUnreadMessageId = firstUnreadMessageId
-                        )  }
+                        _uiState.update {
+                            it.copy(
+                                initialScrollIndex = reversedIndex,
+                                firstUnreadMessageId = firstUnreadMessageId
+                            )
+                        }
                     }
-
                     hasCalculatedInitialScroll = true
                 }
 
@@ -96,15 +104,19 @@ class ChatViewModel @Inject constructor(
 
     fun sendMessage(content: String) {
         if (content.isBlank()) return
+        Log.d(TAG, "Metin mesajı gönderiliyor → chatId=$chatId")
         viewModelScope.launch {
-            sendMessageUseCase(
-                receiverShadeId = chatId,
-                content = content
-            )
+            sendMessageUseCase(receiverShadeId = chatId, content = content)
+            Log.d(TAG, "Metin mesajı gönderildi")
         }
     }
 
     fun clearUnreadNotification() {
         _uiState.update { it.copy(firstUnreadMessageId = null) }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        Log.d(TAG, "ChatViewModel temizlendi: chatId=$chatId")
     }
 }

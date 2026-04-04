@@ -23,11 +23,14 @@ import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.FirebaseMessaging
 import com.shade.app.ui.auth.AuthScreen
 import com.shade.app.ui.chat.ChatScreen
+import com.shade.app.ui.contacts.ContactsScreen
 import com.shade.app.ui.home.HomeScreen
 import com.shade.app.ui.navigation.Screen
 import com.shade.app.ui.theme.ShadeTheme
 import com.shade.app.ui.user.ProfileScreen
 import dagger.hilt.android.AndroidEntryPoint
+
+private const val TAG = "SHADE_NAV"
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -39,6 +42,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.d(TAG, "MainActivity onCreate")
 
         askNotificationPermission()
 
@@ -61,6 +65,11 @@ class MainActivity : ComponentActivity() {
                     Log.e("FCM", "Token alınamadı", task.exception)
                 }
             }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.d(TAG, "MainActivity onDestroy")
     }
 
     private fun askNotificationPermission() {
@@ -86,9 +95,11 @@ fun AppNavigation() {
         startDestination = Screen.Auth.route
     ) {
         composable(Screen.Auth.route) {
+            Log.d(TAG, "→ Auth ekranı")
             AuthScreen(
                 viewModel = hiltViewModel(),
                 onAuthSuccess = {
+                    Log.d(TAG, "Auth başarılı → Home ekranına geçiliyor")
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Auth.route) { inclusive = true }
                     }
@@ -97,12 +108,29 @@ fun AppNavigation() {
         }
 
         composable(Screen.Home.route) {
+            Log.d(TAG, "→ Home ekranı")
             HomeScreen(
                 onChatClick = { chatId, chatName ->
+                    Log.d(TAG, "Home → Chat: chatId=$chatId, chatName=$chatName")
                     navController.navigate(Screen.Chat.createRoute(chatId, chatName))
                 },
                 onNavigateToContacts = {
-                    // Rehber ekranı eklendiğinde buraya gelecek
+                    Log.d(TAG, "Home → Contacts ekranına geçiliyor")
+                    navController.navigate(Screen.Contacts.route)
+                }
+            )
+        }
+
+        composable(Screen.Contacts.route) {
+            Log.d(TAG, "→ Contacts ekranı")
+            ContactsScreen(
+                onBackClick = {
+                    Log.d(TAG, "Contacts → geri (Home)")
+                    navController.popBackStack()
+                },
+                onContactClick = { shadeId, displayName ->
+                    Log.d(TAG, "Contacts → Chat: shadeId=$shadeId, name=$displayName")
+                    navController.navigate(Screen.Chat.createRoute(shadeId, displayName))
                 }
             )
         }
@@ -113,12 +141,17 @@ fun AppNavigation() {
                 navArgument("chatId") { type = NavType.StringType },
                 navArgument("chatName") { type = NavType.StringType }
             )
-        ) {
+        ) { backStackEntry ->
+            val chatId = backStackEntry.arguments?.getString("chatId")
+            val chatName = backStackEntry.arguments?.getString("chatName")
+            Log.d(TAG, "→ Chat ekranı: chatId=$chatId, chatName=$chatName")
             ChatScreen(
                 onBackClick = {
+                    Log.d(TAG, "Chat → geri")
                     navController.popBackStack()
                 },
                 onProfileClick = { shadeId ->
+                    Log.d(TAG, "Chat → Profile: shadeId=$shadeId")
                     navController.navigate(Screen.Profile.createRoute(shadeId))
                 }
             )
@@ -127,9 +160,14 @@ fun AppNavigation() {
         composable(
             route = Screen.Profile.route,
             arguments = listOf(navArgument("shadeId") { type = NavType.StringType })
-        ) {
+        ) { backStackEntry ->
+            val shadeId = backStackEntry.arguments?.getString("shadeId")
+            Log.d(TAG, "→ Profile ekranı: shadeId=$shadeId")
             ProfileScreen(
-                onBackClick = { navController.popBackStack() }
+                onBackClick = {
+                    Log.d(TAG, "Profile → geri")
+                    navController.popBackStack()
+                }
             )
         }
     }

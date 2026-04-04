@@ -88,7 +88,7 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun saveSession(authResult: AuthResult) {
         keyVaultManager.saveShadeId(authResult.shadeId)
-        keyVaultManager.saveUserId(authResult.userId)
+        authResult.userId?.let { keyVaultManager.saveUserId(it) }
 
         authResult.accessToken?.let { keyVaultManager.saveAccessToken(it) }
         authResult.idPrivateKey?.let { keyVaultManager.saveEd25519PrivateKey(it) }

@@ -3,6 +3,7 @@ package com.shade.app.ui.navigation
 sealed class Screen(val route: String) {
     object Auth : Screen("auth")
     object Home : Screen("home")
+    object Contacts : Screen("contacts")
     object Chat : Screen("chat/{chatId}/{chatName}") {
         fun createRoute(chatId: String, chatName: String) = "chat/$chatId/$chatName"
     }

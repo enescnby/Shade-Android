@@ -172,7 +172,7 @@ fun MessageItem(message: MessageEntity, isMe: Boolean) {
                     )
                 )
                 .background(
-                    if (isMe) MaterialTheme.colorScheme.primary 
+                    if (isMe) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.secondaryContainer
                 )
                 .padding(horizontal = 12.dp, vertical = 8.dp)
@@ -188,10 +188,10 @@ fun MessageItem(message: MessageEntity, isMe: Boolean) {
                 modifier = Modifier.align(Alignment.End)
             ) {
                 Text(
-                text = timeString,
-                style = MaterialTheme.typography.labelSmall,
-                color = if (isMe) Color.White.copy(alpha = 0.7f) else Color.Gray,
-            )
+                    text = timeString,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isMe) Color.White.copy(alpha = 0.7f) else Color.Gray,
+                )
                 if (isMe) {
                     MessageStatusIcon(status = message.status)
                 }

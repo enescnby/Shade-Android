@@ -1,9 +1,9 @@
 package com.shade.app.ui.home
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shade.app.R
-import com.shade.app.crypto.MessageCryptoManager
 import com.shade.app.data.local.entities.ChatEntity
 import com.shade.app.data.local.entities.ContactEntity
 import com.shade.app.data.local.entities.MessageEntity
@@ -43,49 +43,69 @@ class HomeViewModel @Inject constructor(
     private val contactRepository: ContactRepository,
     private val messageListener: MessageListener
 ) : ViewModel() {
+
+    companion object {
+        private const val TAG = "SHADE_HOME"
+    }
+
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
     private val _lookupState = MutableStateFlow<LookupUiState>(LookupUiState.Idle)
     val lookupState: StateFlow<LookupUiState> = _lookupState.asStateFlow()
 
     init {
+        Log.d(TAG, "HomeViewModel başlatıldı")
         messageListener.startListening()
         observeChats()
     }
 
     private fun observeChats() {
+        Log.d(TAG, "Sohbetler dinleniyor...")
         chatRepository.getAllChatsWithContact()
             .onStart { _uiState.update { it.copy(isLoading = true) } }
             .onEach { chatList ->
+                Log.d(TAG, "Sohbet listesi güncellendi: ${chatList.size} sohbet")
                 _uiState.update { it.copy(chats = chatList, isLoading = false) }
             }
             .catch { e ->
+                Log.e(TAG, "Sohbet listesi alınamadı: ${e.message}")
                 _uiState.update { it.copy(error = e.message, isLoading = false) }
             }
             .launchIn(viewModelScope)
     }
 
     fun startLookup(shadeId: String, onNavigateToChat: (String, String) -> Unit) {
+        Log.d(TAG, "Kullanıcı aranıyor: $shadeId")
         viewModelScope.launch {
             _lookupState.value = LookupUiState.Loading
 
             val contact = contactRepository.getOrFetchContact(shadeId)
             if (contact != null) {
+                Log.d(TAG, "Kullanıcı bulundu: $shadeId → chat başlatılıyor")
                 _lookupState.value = LookupUiState.Success
                 onNavigateToChat(contact.shadeId, contact.savedName ?: contact.shadeId)
             } else {
+                Log.w(TAG, "Kullanıcı bulunamadı: $shadeId")
                 _lookupState.value = LookupUiState.Error(UiText.StringResource(R.string.user_not_found))
             }
         }
     }
 
     fun resetLookupState() {
+        Log.d(TAG, "Lookup state sıfırlandı")
         _lookupState.value = LookupUiState.Idle
     }
 
     fun deleteChat(chat: ChatWithContact) {
+        Log.d(TAG, "Sohbet siliniyor: ${chat.chat.chatId}")
         viewModelScope.launch {
             chatRepository.deleteChat(chat.chat.chatId)
+            Log.d(TAG, "Sohbet silindi: ${chat.chat.chatId}")
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        Log.d(TAG, "HomeViewModel temizlendi")
     }
 }
