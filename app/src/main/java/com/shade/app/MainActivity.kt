@@ -127,6 +127,10 @@ fun AppNavigation() {
                     navController.navigate(Screen.Auth.route) {
                         popUpTo(0) { inclusive = true }
                     }
+                },
+                onSecurityAuditClick = {
+                    Log.d(TAG, "Home → Güvenlik Günlüğü")
+                    navController.navigate(Screen.SecurityAudit.route)
                 }
             )
         }
@@ -177,10 +181,6 @@ fun AppNavigation() {
                 onBackClick = {
                     Log.d(TAG, "Profile → geri")
                     navController.popBackStack()
-                },
-                onSecurityAuditClick = {
-                    Log.d(TAG, "Profile → Güvenlik Günlüğü")
-                    navController.navigate(Screen.SecurityAudit.route)
                 }
             )
         }

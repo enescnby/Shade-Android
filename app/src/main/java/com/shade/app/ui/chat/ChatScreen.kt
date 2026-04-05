@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,7 +23,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.shade.app.R
 import com.shade.app.data.local.entities.MessageEntity
@@ -30,6 +33,20 @@ import com.shade.app.data.local.entities.MessageStatus
 import com.shade.app.ui.util.UiText
 import java.text.SimpleDateFormat
 import java.util.*
+
+private val LANGUAGES = listOf(
+    "🇬🇧 İngilizce" to "en",
+    "🇩🇪 Almanca" to "de",
+    "🇫🇷 Fransızca" to "fr",
+    "🇪🇸 İspanyolca" to "es",
+    "🇸🇦 Arapça" to "ar",
+    "🇷🇺 Rusça" to "ru",
+    "🇨🇳 Çince" to "zh",
+    "🇯🇵 Japonca" to "ja",
+    "🇮🇹 İtalyanca" to "it",
+    "🇧🇷 Portekizce" to "pt",
+    "🇹🇷 Türkçe" to "tr"
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,6 +57,40 @@ fun ChatScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var messageText by remember { mutableStateOf("") }
+
+    // Çeviri dialog state
+    var pendingTranslationMessageId by remember { mutableStateOf<String?>(null) }
+    var pendingTranslationContent by remember { mutableStateOf("") }
+    var showLanguageDialog by remember { mutableStateOf(false) }
+
+    // Dil seçim dialogu
+    if (showLanguageDialog) {
+        AlertDialog(
+            onDismissRequest = { showLanguageDialog = false },
+            title = { Text("Dil Seçin") },
+            text = {
+                LazyColumn {
+                    items(LANGUAGES) { (label, code) ->
+                        TextButton(
+                            onClick = {
+                                showLanguageDialog = false
+                                pendingTranslationMessageId?.let { id ->
+                                    viewModel.translateMessage(id, pendingTranslationContent, code)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(label, modifier = Modifier.fillMaxWidth(), fontSize = 15.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showLanguageDialog = false }) { Text("İptal") }
+            }
+        )
+    }
 
     val listState = rememberLazyListState()
 
@@ -155,7 +206,17 @@ fun ChatScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(uiState.searchResults, key = { it.messageId }) { message ->
-                            MessageItem(message = message, isMe = message.senderId == uiState.myShadeId)
+                            MessageItem(
+                                message = message,
+                                isMe = message.senderId == uiState.myShadeId,
+                                translatedText = uiState.translatedMessages[message.messageId],
+                                isTranslating = uiState.translatingMessageId == message.messageId,
+                                onTranslateRequest = {
+                                    pendingTranslationMessageId = message.messageId
+                                    pendingTranslationContent = message.content
+                                    showLanguageDialog = true
+                                }
+                            )
                         }
                     }
                 }
@@ -177,7 +238,14 @@ fun ChatScreen(
                     ) { message ->
                         MessageItem(
                             message = message,
-                            isMe = message.senderId == uiState.myShadeId
+                            isMe = message.senderId == uiState.myShadeId,
+                            translatedText = uiState.translatedMessages[message.messageId],
+                            isTranslating = uiState.translatingMessageId == message.messageId,
+                            onTranslateRequest = {
+                                pendingTranslationMessageId = message.messageId
+                                pendingTranslationContent = message.content
+                                showLanguageDialog = true
+                            }
                         )
 
                         if (message.messageId == uiState.firstUnreadMessageId) {
@@ -221,49 +289,95 @@ fun ChatScreen(
 }
 
 @Composable
-fun MessageItem(message: MessageEntity, isMe: Boolean) {
+fun MessageItem(
+    message: MessageEntity,
+    isMe: Boolean,
+    translatedText: String? = null,
+    isTranslating: Boolean = false,
+    onTranslateRequest: () -> Unit = {}
+) {
     val dateFormatter = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     val timeString = remember(message.timestamp) {
         dateFormatter.format(Date(message.timestamp))
     }
+    val bubbleBg = if (isMe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer
+    val textColor = if (isMe) Color.White else MaterialTheme.colorScheme.onSecondaryContainer
+
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = if (isMe) Alignment.CenterEnd else Alignment.CenterStart
     ) {
-        Column(
-            modifier = Modifier
-                .clip(
-                    RoundedCornerShape(
-                        topStart = 16.dp,
-                        topEnd = 16.dp,
-                        bottomStart = if (isMe) 16.dp else 0.dp,
-                        bottomEnd = if (isMe) 0.dp else 16.dp
+        Column(horizontalAlignment = if (isMe) Alignment.End else Alignment.Start) {
+            // Mesaj balonu
+            Column(
+                modifier = Modifier
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = 16.dp,
+                            topEnd = 16.dp,
+                            bottomStart = if (isMe) 16.dp else 0.dp,
+                            bottomEnd = if (isMe) 0.dp else 16.dp
+                        )
                     )
-                )
-                .background(
-                    if (isMe) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.secondaryContainer
-                )
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-                .widthIn(max = 280.dp)
-        ) {
-            Text(
-                text = message.content,
-                color = if (isMe) Color.White else MaterialTheme.colorScheme.onSecondaryContainer
-            )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.align(Alignment.End)
+                    .background(bubbleBg)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .widthIn(max = 280.dp)
             ) {
-                Text(
-                    text = timeString,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (isMe) Color.White.copy(alpha = 0.7f) else Color.Gray,
-                )
-                if (isMe) {
-                    MessageStatusIcon(status = message.status)
+                Text(text = message.content, color = textColor)
+
+                // Çeviri yükleniyor
+                if (isTranslating) {
+                    Spacer(Modifier.height(6.dp))
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .size(14.dp)
+                            .align(Alignment.CenterHorizontally),
+                        strokeWidth = 2.dp,
+                        color = if (isMe) Color.White else MaterialTheme.colorScheme.primary
+                    )
                 }
+
+                // Çevrilmiş metin
+                if (!translatedText.isNullOrBlank() && !isTranslating) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        color = if (isMe) Color.White.copy(alpha = 0.3f) else Color.Gray.copy(alpha = 0.3f)
+                    )
+                    Text(
+                        text = translatedText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = textColor.copy(alpha = 0.85f),
+                        fontStyle = FontStyle.Italic
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text(
+                        text = timeString,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isMe) Color.White.copy(alpha = 0.7f) else Color.Gray,
+                    )
+                    if (isMe) {
+                        MessageStatusIcon(status = message.status)
+                    }
+                }
+            }
+
+            // 🌐 Çevir butonu (balonun altında, sadece ikon)
+            IconButton(
+                onClick = onTranslateRequest,
+                modifier = Modifier.size(20.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Language,
+                    contentDescription = "Çevir",
+                    modifier = Modifier.size(13.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
             }
         }
     }

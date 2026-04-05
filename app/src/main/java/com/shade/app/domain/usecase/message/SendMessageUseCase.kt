@@ -64,7 +64,8 @@ class SendMessageUseCase @Inject constructor(
         chatRepository.updateChatWithNewMessage(
             chatId = receiverShadeId,
             lastMessage = content,
-            timestamp = ts
+            timestamp = ts,
+            isFromMe = true
         )
     }
 }

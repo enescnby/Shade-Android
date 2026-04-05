@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,6 +30,7 @@ fun HomeScreen(
     onChatClick: (String, String) -> Unit,
     onNavigateToContacts: () -> Unit,
     onLogout: () -> Unit,
+    onSecurityAuditClick: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -56,6 +58,12 @@ fun HomeScreen(
                         onNavigateToContacts()
                     }) {
                         Icon(Icons.Default.People, contentDescription = "Kişiler")
+                    }
+                    IconButton(onClick = {
+                        Log.d(TAG, "Güvenlik Günlüğü butonuna tıklandı")
+                        onSecurityAuditClick()
+                    }) {
+                        Icon(Icons.Default.Security, contentDescription = "Hesap Etkinliği")
                     }
                     IconButton(onClick = {
                         Log.d(TAG, "Çıkış butonuna tıklandı")

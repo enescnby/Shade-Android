@@ -12,6 +12,6 @@ interface ChatRepository {
     suspend fun insertOrUpdateChat(chat: ChatEntity)
     suspend fun resetUnreadCount(chatId: String)
 
-    suspend fun updateChatWithNewMessage(chatId: String, lastMessage: String, timestamp: Long)
+    suspend fun updateChatWithNewMessage(chatId: String, lastMessage: String, timestamp: Long, isFromMe: Boolean = false)
     suspend fun deleteChat(chatId: String)
 }

@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.shade.app.data.local.entities.MessageEntity
 import com.shade.app.data.local.entities.MessageStatus
 import com.shade.app.data.remote.api.UserService
+import com.shade.app.data.repository.TranslationRepository
 import com.shade.app.domain.repository.ChatRepository
 import com.shade.app.domain.repository.MessageRepository
 import com.shade.app.domain.usecase.message.MarkChatAsReadUseCase
@@ -37,7 +38,10 @@ data class ChatUiState(
     val searchQuery: String = "",
     val searchResults: List<MessageEntity> = emptyList(),
     // Son görülme
-    val lastSeenText: String = ""
+    val lastSeenText: String = "",
+    // Çeviri
+    val translatedMessages: Map<String, String> = emptyMap(),
+    val translatingMessageId: String? = null
 )
 
 @HiltViewModel
@@ -48,6 +52,7 @@ class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val keyVaultManager: KeyVaultManager,
     private val userService: UserService,
+    private val translationRepository: TranslationRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -74,6 +79,8 @@ class ChatViewModel @Inject constructor(
         observeMessages()
         observeChatDetails()
         fetchUserStatus()
+        // Sohbet açılınca okunmamış sayacını hemen sıfırla
+        viewModelScope.launch { markChatAsReadUseCase(chatId) }
     }
 
     private fun observeMessages() {
@@ -101,8 +108,9 @@ class ChatViewModel @Inject constructor(
 
                 _uiState.update { it.copy(messages = messages) }
 
+                // Yeni gelen mesaj varsa sayacı sıfırla
                 if (messages.isNotEmpty() && messages.last().senderId != keyVaultManager.getShadeId()) {
-                    markChatAsReadUseCase(chatId)
+                    viewModelScope.launch { markChatAsReadUseCase(chatId) }
                 }
             }
             .launchIn(viewModelScope)
@@ -183,6 +191,25 @@ class ChatViewModel @Inject constructor(
             }
             .catch { e -> Log.e(TAG, "Arama hatası: ${e.message}") }
             .launchIn(viewModelScope)
+    }
+
+    fun translateMessage(messageId: String, content: String, targetLang: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(translatingMessageId = messageId) }
+            val translated = translationRepository.translate(content, targetLang)
+            if (!translated.isNullOrBlank()) {
+                _uiState.update { state ->
+                    state.copy(
+                        translatedMessages = state.translatedMessages + (messageId to translated),
+                        translatingMessageId = null
+                    )
+                }
+                Log.d(TAG, "Çeviri tamamlandı: $translated")
+            } else {
+                Log.w(TAG, "Çeviri sonuç boş")
+                _uiState.update { it.copy(translatingMessageId = null) }
+            }
+        }
     }
 
     override fun onCleared() {

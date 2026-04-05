@@ -31,11 +31,21 @@ class ChatRepositoryImpl @Inject constructor(
     override suspend fun updateChatWithNewMessage(
         chatId: String,
         lastMessage: String,
-        timestamp: Long
+        timestamp: Long,
+        isFromMe: Boolean
     ) {
-        val updatedRows = chatDao.incrementUnreadCount(chatId, lastMessage, timestamp)
-        if (updatedRows == 0) {
-            chatDao.insertOrUpdateChat(ChatEntity(chatId, lastMessage, timestamp, 1))
+        if (isFromMe) {
+            // Kendi mesajımız: sayacı artırma, sadece son mesajı güncelle
+            val updatedRows = chatDao.updateLastMessageNoIncrement(chatId, lastMessage, timestamp)
+            if (updatedRows == 0) {
+                chatDao.insertOrUpdateChat(ChatEntity(chatId, lastMessage, timestamp, 0))
+            }
+        } else {
+            // Gelen mesaj: okunmamış sayacını artır
+            val updatedRows = chatDao.incrementUnreadCount(chatId, lastMessage, timestamp)
+            if (updatedRows == 0) {
+                chatDao.insertOrUpdateChat(ChatEntity(chatId, lastMessage, timestamp, 1))
+            }
         }
     }
 

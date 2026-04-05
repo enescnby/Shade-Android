@@ -32,8 +32,10 @@ android {
 
         val apiUrl = localProperties.getProperty("API_URL")
         val wsUrl = localProperties.getProperty("WS_URL")
+        val geminiKey = localProperties.getProperty("GEMINI_API_KEY") ?: ""
         buildConfigField("String", "API_URL", "\"$apiUrl\"")
         buildConfigField("String", "WS_URL", "\"$wsUrl\"")
+        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiKey\"")
     }
 
     buildTypes {

@@ -57,7 +57,7 @@ class ReceiveMessageUseCase @Inject constructor(
             )
 
             messageRepository.insertMessage(entity)
-            chatRepository.updateChatWithNewMessage(contact.shadeId, decryptedText, payload.timestamp)
+            chatRepository.updateChatWithNewMessage(contact.shadeId, decryptedText, payload.timestamp, isFromMe = false)
 
             sendReceiptUseCase(payload.messageId, contact.shadeId, MessageStatus.DELIVERED)
         } catch (e: Exception) {
