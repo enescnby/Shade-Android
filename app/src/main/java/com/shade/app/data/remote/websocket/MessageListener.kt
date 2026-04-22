@@ -10,7 +10,9 @@ import com.shade.app.proto.MessageAck
 import com.shade.app.proto.WebSocketMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -25,7 +27,7 @@ class MessageListener @Inject constructor(
     private val messageRepository: MessageRepository,
     private val webSocketManager: ShadeWebSocketManager
 ){
-    private val managerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var managerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var isListening: Boolean = false
 
     fun startListening() {
@@ -35,7 +37,6 @@ class MessageListener @Inject constructor(
         webSocketManager.connect(BuildConfig.WS_URL)
         Log.d("MessageManager", "Listening to WebSocket ...")
 
-        // Fetch any pending receipts we missed while offline
         managerScope.launch {
             fetchPendingReceiptsUseCase()
         }
@@ -45,14 +46,16 @@ class MessageListener @Inject constructor(
                 when {
                     webSocketMessage.hasPayload() -> {
                         val messageId = webSocketMessage.payload.messageId
-                        // ACK'ı HEMEN gönder - decrypt/DB yazmasını bekleme
+                        Log.d("MessageManager", "New Message received: $messageId")
+
+                        // Decrypt and persist FIRST, then send ACK
+                        receiveMessageUseCase(webSocketMessage.payload)
+
                         val ack = WebSocketMessage.newBuilder()
                             .setAck(MessageAck.newBuilder().setMessageId(messageId).build())
                             .build()
                         webSocketManager.sendMessage(ack)
-
-                        Log.d("MessageManager", "New Message - ACK sent for: $messageId")
-                        receiveMessageUseCase(webSocketMessage.payload)
+                        Log.d("MessageManager", "ACK sent for: $messageId")
                     }
                     webSocketMessage.hasReceipt() -> {
                         Log.d("MessageManager", "New Receipt")
@@ -67,12 +70,17 @@ class MessageListener @Inject constructor(
         if (isListening) {
             webSocketManager.connect(BuildConfig.WS_URL)
 
-            // Fetch pending receipts on reconnect too
             managerScope.launch {
                 fetchPendingReceiptsUseCase()
             }
         } else {
             startListening()
         }
+    }
+
+    fun stopListening() {
+        isListening = false
+        managerScope.cancel()
+        managerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 }

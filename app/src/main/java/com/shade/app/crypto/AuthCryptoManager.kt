@@ -17,7 +17,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class AuthCryptoManager @Inject constructor() {
+class AuthCryptoManager @Inject constructor(
+    private val nativeCrypto: NativeCryptoManager
+) {
 
     companion object {
         private const val PBKDF2_ALGORITHM = "PBKDF2WithHmacSHA256"
@@ -58,13 +60,9 @@ class AuthCryptoManager @Inject constructor() {
     }
 
     fun deriveAesKeyFromMnemonic(mnemonic: List<String>, salt: String): SecretKeySpec {
-        val passphraseChars = mnemonic.joinToString(" ").toCharArray()
-        val saltBytes = salt.toByteArray(Charsets.UTF_8)
-
-        val spec = PBEKeySpec(passphraseChars, saltBytes, ITERATION_COUNT, KEY_LENGTH)
-        val factory = SecretKeyFactory.getInstance(PBKDF2_ALGORITHM)
-
-        return SecretKeySpec(factory.generateSecret(spec).encoded, "AES")
+        val passphrase = mnemonic.joinToString(" ")
+        val keyBytes = nativeCrypto.pbkdf2(passphrase, salt.toByteArray(Charsets.UTF_8), ITERATION_COUNT, KEY_LENGTH)
+        return SecretKeySpec(keyBytes, "AES")
     }
 
     fun encryptPrivateKey(privateKeyHex: String, aesKey: SecretKeySpec): String {

@@ -4,10 +4,7 @@ import org.bouncycastle.crypto.agreement.X25519Agreement
 import org.bouncycastle.crypto.digests.SHA256Digest
 import org.bouncycastle.crypto.generators.HKDFBytesGenerator
 import org.bouncycastle.crypto.generators.X25519KeyPairGenerator
-import org.bouncycastle.crypto.modes.ChaCha20Poly1305
 import org.bouncycastle.crypto.params.HKDFParameters
-import org.bouncycastle.crypto.params.KeyParameter
-import org.bouncycastle.crypto.params.ParametersWithIV
 import org.bouncycastle.crypto.params.X25519KeyGenerationParameters
 import org.bouncycastle.crypto.params.X25519PrivateKeyParameters
 import org.bouncycastle.crypto.params.X25519PublicKeyParameters
@@ -17,7 +14,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class MessageCryptoManager @Inject constructor() {
+class MessageCryptoManager @Inject constructor(
+    private val nativeCrypto: NativeCryptoManager
+) {
 
     fun generateX25519KeyPairHex(): Pair<String, String> {
         val random = SecureRandom()
@@ -69,17 +68,9 @@ class MessageCryptoManager @Inject constructor() {
         val keyBytes = Hex.decode(derivedKeyHex)
         val plainBytes = plaintext.toByteArray(Charsets.UTF_8)
 
-        val nonce = ByteArray(12)
-        SecureRandom().nextBytes(nonce)
+        val (ciphertext, nonce) = nativeCrypto.chaChaEncrypt(plainBytes, keyBytes)
 
-        val cipher = ChaCha20Poly1305()
-        cipher.init(true, ParametersWithIV(KeyParameter(keyBytes), nonce))
-
-        val cipherBytes = ByteArray(cipher.getOutputSize(plainBytes.size))
-        val len = cipher.processBytes(plainBytes, 0, plainBytes.size, cipherBytes, 0)
-        cipher.doFinal(cipherBytes, len)
-
-        return Pair(Hex.toHexString(cipherBytes), Hex.toHexString(nonce))
+        return Pair(Hex.toHexString(ciphertext), Hex.toHexString(nonce))
     }
 
     fun decryptMessage(ciphertextHex: String, nonceHex: String, derivedKeyHex: String): String {
@@ -87,45 +78,20 @@ class MessageCryptoManager @Inject constructor() {
         val ciphertextBytes = Hex.decode(ciphertextHex)
         val nonceBytes = Hex.decode(nonceHex)
 
-        val cipher = ChaCha20Poly1305()
-        cipher.init(false, ParametersWithIV(KeyParameter(keyBytes), nonceBytes))
+        val plaintext = nativeCrypto.chaChaDecrypt(ciphertextBytes, nonceBytes, keyBytes)
 
-        val plainBytes = ByteArray(cipher.getOutputSize(ciphertextBytes.size))
-        val len = cipher.processBytes(ciphertextBytes, 0, ciphertextBytes.size, plainBytes, 0)
-
-        cipher.doFinal(plainBytes, len)
-
-        return String(plainBytes, Charsets.UTF_8)
+        return String(plaintext, Charsets.UTF_8)
     }
 
 
     fun encryptBytes(plainBytes: ByteArray, derivedKeyHex: String): Pair<ByteArray, ByteArray> {
         val keyBytes = Hex.decode(derivedKeyHex)
-
-        val nonce = ByteArray(12)
-        SecureRandom().nextBytes(nonce)
-
-        val cipher = ChaCha20Poly1305()
-        cipher.init(true, ParametersWithIV(KeyParameter(keyBytes), nonce))
-
-        val cipherBytes = ByteArray(cipher.getOutputSize(plainBytes.size))
-        val len = cipher.processBytes(plainBytes, 0, plainBytes.size, cipherBytes, 0)
-        cipher.doFinal(cipherBytes, len)
-
-        return Pair(cipherBytes, nonce)
+        return nativeCrypto.chaChaEncrypt(plainBytes, keyBytes)
     }
 
     fun decryptBytes(cipherTextBytes: ByteArray, nonceBytes: ByteArray, derivedKeyHex: String): ByteArray {
         val keyBytes = Hex.decode(derivedKeyHex)
-
-        val cipher = ChaCha20Poly1305()
-        cipher.init(false, ParametersWithIV(KeyParameter(keyBytes), nonceBytes))
-
-        val plainBytes = ByteArray(cipher.getOutputSize(cipherTextBytes.size))
-        val len = cipher.processBytes(cipherTextBytes, 0, cipherTextBytes.size, plainBytes, 0)
-        cipher.doFinal(plainBytes, len)
-
-        return plainBytes
+        return nativeCrypto.chaChaDecrypt(cipherTextBytes, nonceBytes, keyBytes)
     }
 
 }

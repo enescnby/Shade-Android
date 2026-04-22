@@ -35,7 +35,8 @@ class ShadeWebSocketManagerImpl @Inject constructor(
 
     private var webSocket: WebSocket? = null
     private var lastUrl: String? = null
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val supervisorJob = SupervisorJob()
+    private val scope = CoroutineScope(supervisorJob + Dispatchers.IO)
     private val TAG = "ShadeWS"
 
     private var retryCount = 0
@@ -79,22 +80,24 @@ class ShadeWebSocketManagerImpl @Inject constructor(
     }
 
     private fun performConnect(url: String) {
-        val token = keyVaultManager.getAccessToken() ?: ""
-        if (token.isEmpty()) {
-            Log.e(TAG, "Connection cancelled: Token not found")
-            return
-        }
+        scope.launch {
+            val token = keyVaultManager.getAccessToken() ?: ""
+            if (token.isEmpty()) {
+                Log.e(TAG, "Connection cancelled: Token not found")
+                return@launch
+            }
 
-        val socketUrl = if (url.contains("?")) {
-            "$url&token=$token"
-        } else {
-            "$url?token=$token"
-        }
+            val socketUrl = if (url.contains("?")) {
+                "$url&token=$token"
+            } else {
+                "$url?token=$token"
+            }
 
-        Log.d(TAG, "Connecting: $socketUrl")
-        val request = Request.Builder().url(socketUrl).build()
-        _connectionState.value = ConnectionState.CONNECTING
-        webSocket = client.newWebSocket(request, this)
+            Log.d(TAG, "Connecting: $socketUrl")
+            val request = Request.Builder().url(socketUrl).build()
+            _connectionState.value = ConnectionState.CONNECTING
+            webSocket = client.newWebSocket(request, this@ShadeWebSocketManagerImpl)
+        }
     }
 
     private fun scheduleRetry() {

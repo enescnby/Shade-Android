@@ -52,9 +52,8 @@ class ChatViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(
         ChatUiState(
-            chatId = chatId, 
-            chatName = initialChatName,
-            myShadeId = keyVaultManager.getShadeId() ?: ""
+            chatId = chatId,
+            chatName = initialChatName
         )
     )
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
@@ -64,6 +63,10 @@ class ChatViewModel @Inject constructor(
     init {
         activeChatTracker.setActive(chatId)
         notificationHelper.clearNotifications(chatId)
+        viewModelScope.launch {
+            val shadeId = keyVaultManager.getShadeId() ?: ""
+            _uiState.update { it.copy(myShadeId = shadeId) }
+        }
         observeMessages()
         observeChatDetails()
     }

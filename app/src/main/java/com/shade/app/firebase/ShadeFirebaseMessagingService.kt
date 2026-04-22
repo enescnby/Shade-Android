@@ -44,10 +44,14 @@ class ShadeFirebaseMessagingService : FirebaseMessagingService() {
         )
     }
 
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onNewToken(token: String) {
         super.onNewToken(token)
         Log.d("FCM", "New token: $token")
-        getEntryPoint().keyVaultManager().saveFcmToken(token)
+        serviceScope.launch {
+            getEntryPoint().keyVaultManager().saveFcmToken(token)
+        }
     }
 
     override fun onMessageReceived(message: RemoteMessage) {

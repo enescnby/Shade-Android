@@ -29,6 +29,10 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+        }
+
         val apiUrl = localProperties.getProperty("API_URL")
         val wsUrl = localProperties.getProperty("WS_URL")
         buildConfigField("String", "API_URL", "\"$apiUrl\"")
@@ -128,4 +132,32 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.10.0"))
     implementation("com.google.firebase:firebase-messaging")
     implementation("io.coil-kt:coil-compose:2.6.0")
+}
+
+val rustDir = "${projectDir}/rust/shade-crypto"
+val jniLibsDir = "${projectDir}/src/main/jniLibs"
+
+val cargoPath = localProperties.getProperty("cargo.path") ?: "cargo"
+
+tasks.register<Exec>("buildRustDebug") {
+    workingDir(rustDir)
+    commandLine(cargoPath, "ndk", "-t", "arm64-v8a", "-t", "x86_64", "-o", jniLibsDir, "build")
+}
+
+tasks.register<Exec>("buildRustRelease") {
+    workingDir(rustDir)
+    commandLine(
+        cargoPath, "ndk",
+        "-t", "arm64-v8a",
+        "-t", "armeabi-v7a",
+        "-t", "x86_64",
+        "-t", "x86",
+        "-o", jniLibsDir,
+        "build", "--release"
+    )
+}
+
+afterEvaluate {
+    tasks.named("mergeDebugNativeLibs") { dependsOn("buildRustDebug") }
+    tasks.named("mergeReleaseNativeLibs") { dependsOn("buildRustRelease") }
 }

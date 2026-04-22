@@ -45,8 +45,10 @@ class AuthViewModel @Inject constructor(
     }
 
     private fun checkAuthStatus() {
-        if (!keyVaultManager.getAccessToken().isNullOrEmpty()) {
-            _uiState.value = AuthUiState.Authenticated
+        viewModelScope.launch {
+            if (!keyVaultManager.getAccessToken().isNullOrEmpty()) {
+                _uiState.value = AuthUiState.Authenticated
+            }
         }
     }
 

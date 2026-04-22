@@ -21,8 +21,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.google.firebase.messaging.FirebaseMessaging
 import com.shade.app.security.KeyVaultManager
+import kotlinx.coroutines.launch
 import com.shade.app.ui.auth.AuthScreen
 import com.shade.app.ui.chat.ChatScreen
 import com.shade.app.ui.home.HomeScreen
@@ -66,7 +68,9 @@ class MainActivity : ComponentActivity() {
                 if (task.isSuccessful) {
                     val token = task.result
                     Log.d("FCM", "Token: ${task.result}")
-                    keyVaultManager.saveFcmToken(token)
+                    lifecycleScope.launch {
+                        keyVaultManager.saveFcmToken(token)
+                    }
                 } else {
                     Log.e("FCM", "Token alınamadı", task.exception)
                 }
