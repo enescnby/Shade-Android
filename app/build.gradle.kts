@@ -30,6 +30,10 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+        }
+
         val apiUrl = localProperties.getProperty("API_URL")
         val wsUrl = localProperties.getProperty("WS_URL")
         val geminiKey = localProperties.getProperty("GEMINI_API_KEY") ?: ""
@@ -96,6 +100,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
 
     implementation(libs.androidx.compose.material.icons.extended)
 
@@ -124,7 +129,38 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
+    implementation("androidx.hilt:hilt-work:1.2.0")
+    ksp("androidx.hilt:hilt-compiler:1.2.0")
 
     implementation(platform("com.google.firebase:firebase-bom:33.10.0"))
     implementation("com.google.firebase:firebase-messaging")
+    implementation("io.coil-kt:coil-compose:2.6.0")
+}
+
+val rustDir = "${projectDir}/rust/shade-crypto"
+val jniLibsDir = "${projectDir}/src/main/jniLibs"
+
+val cargoPath = localProperties.getProperty("cargo.path") ?: "cargo"
+
+tasks.register<Exec>("buildRustDebug") {
+    workingDir(rustDir)
+    commandLine(cargoPath, "ndk", "-t", "arm64-v8a", "-t", "x86_64", "-o", jniLibsDir, "build")
+}
+
+tasks.register<Exec>("buildRustRelease") {
+    workingDir(rustDir)
+    commandLine(
+        cargoPath, "ndk",
+        "-t", "arm64-v8a",
+        "-t", "armeabi-v7a",
+        "-t", "x86_64",
+        "-t", "x86",
+        "-o", jniLibsDir,
+        "build", "--release"
+    )
+}
+
+afterEvaluate {
+    tasks.named("mergeDebugNativeLibs") { dependsOn("buildRustDebug") }
+    tasks.named("mergeReleaseNativeLibs") { dependsOn("buildRustRelease") }
 }

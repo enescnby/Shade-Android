@@ -1,5 +1,6 @@
 package com.shade.app.ui.chat
 
+import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -10,9 +11,13 @@ import com.shade.app.data.remote.api.UserService
 import com.shade.app.data.repository.TranslationRepository
 import com.shade.app.domain.repository.ChatRepository
 import com.shade.app.domain.repository.MessageRepository
+import com.shade.app.domain.usecase.message.DownloadImageUseCase
 import com.shade.app.domain.usecase.message.MarkChatAsReadUseCase
+import com.shade.app.domain.usecase.message.SendImageMessageUseCase
 import com.shade.app.domain.usecase.message.SendMessageUseCase
 import com.shade.app.security.KeyVaultManager
+import com.shade.app.util.ActiveChatTracker
+import com.shade.app.util.NotificationHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -33,13 +38,15 @@ data class ChatUiState(
     val initialScrollIndex: Int? = null,
     val firstUnreadMessageId: String? = null,
     val isSendingImage: Boolean = false,
-    // Arama
+    val downloadingMessageId: String? = null,
+    val downloadProgress: Float = 0f,
+    // Search
     val isSearchActive: Boolean = false,
     val searchQuery: String = "",
     val searchResults: List<MessageEntity> = emptyList(),
-    // Son görülme
+    // Last seen
     val lastSeenText: String = "",
-    // Çeviri
+    // Translation
     val translatedMessages: Map<String, String> = emptyMap(),
     val translatingMessageId: String? = null
 )
@@ -48,11 +55,15 @@ data class ChatUiState(
 class ChatViewModel @Inject constructor(
     private val messageRepository: MessageRepository,
     private val sendMessageUseCase: SendMessageUseCase,
+    private val sendImageMessageUseCase: SendImageMessageUseCase,
+    private val downloadImageUseCase: DownloadImageUseCase,
     private val markChatAsReadUseCase: MarkChatAsReadUseCase,
     private val chatRepository: ChatRepository,
     private val keyVaultManager: KeyVaultManager,
     private val userService: UserService,
     private val translationRepository: TranslationRepository,
+    private val activeChatTracker: ActiveChatTracker,
+    private val notificationHelper: NotificationHelper,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -66,8 +77,7 @@ class ChatViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(
         ChatUiState(
             chatId = chatId,
-            chatName = initialChatName,
-            myShadeId = keyVaultManager.getShadeId() ?: ""
+            chatName = initialChatName
         )
     )
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
@@ -76,11 +86,22 @@ class ChatViewModel @Inject constructor(
 
     init {
         Log.d(TAG, "ChatViewModel başlatıldı: chatId=$chatId")
+        activeChatTracker.setActive(chatId)
+        notificationHelper.clearNotifications(chatId)
+        viewModelScope.launch {
+            val shadeId = keyVaultManager.getShadeId() ?: ""
+            _uiState.update { it.copy(myShadeId = shadeId) }
+        }
         observeMessages()
         observeChatDetails()
         fetchUserStatus()
-        // Sohbet açılınca okunmamış sayacını hemen sıfırla
         viewModelScope.launch { markChatAsReadUseCase(chatId) }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        activeChatTracker.clear()
+        Log.d(TAG, "ChatViewModel temizlendi: chatId=$chatId")
     }
 
     private fun observeMessages() {
@@ -108,8 +129,10 @@ class ChatViewModel @Inject constructor(
 
                 _uiState.update { it.copy(messages = messages) }
 
-                // Yeni gelen mesaj varsa sayacı sıfırla
-                if (messages.isNotEmpty() && messages.last().senderId != keyVaultManager.getShadeId()) {
+                val hasUnread = messages.any {
+                    it.senderId != myId && it.status != MessageStatus.READ
+                }
+                if (hasUnread) {
                     viewModelScope.launch { markChatAsReadUseCase(chatId) }
                 }
             }
@@ -168,6 +191,27 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun sendImage(uri: Uri) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSendingImage = true) }
+            sendImageMessageUseCase(receiverShadeId = chatId, imageUri = uri)
+            _uiState.update { it.copy(isSendingImage = false) }
+        }
+    }
+
+    fun downloadImage(message: MessageEntity) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(downloadingMessageId = message.messageId, downloadProgress = 0f) }
+            val result = downloadImageUseCase(message) { progress ->
+                _uiState.update { it.copy(downloadProgress = progress) }
+            }
+            result.onFailure { e ->
+                Log.e(TAG, "Image download failed: ${e.message}", e)
+            }
+            _uiState.update { it.copy(downloadingMessageId = null, downloadProgress = 0f) }
+        }
+    }
+
     fun clearUnreadNotification() {
         _uiState.update { it.copy(firstUnreadMessageId = null) }
     }
@@ -210,10 +254,5 @@ class ChatViewModel @Inject constructor(
                 _uiState.update { it.copy(translatingMessageId = null) }
             }
         }
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        Log.d(TAG, "ChatViewModel temizlendi: chatId=$chatId")
     }
 }

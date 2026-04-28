@@ -12,6 +12,9 @@ interface MessageRepository {
     suspend fun updateMessageStatus(messageId: String, status: MessageStatus)
     suspend fun sendWebsocketMessage(message: WebSocketMessage): Boolean
     fun observeIncomingMessages(): Flow<WebSocketMessage>
+    suspend fun updateImagePath(messageId: String, path: String)
+    suspend fun getMessageStatus(messageId: String): MessageStatus?
+    suspend fun updateMessageStatusIfForward(messageId: String, newStatus: MessageStatus)
     suspend fun deleteMessage(message: MessageEntity)
     fun searchMessages(chatId: String, query: String): Flow<List<MessageEntity>>
 }

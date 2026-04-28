@@ -4,14 +4,12 @@ import android.content.ClipData
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -19,14 +17,13 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -42,6 +39,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shade.app.R
+import com.shade.app.ui.theme.*
 import kotlinx.coroutines.launch
 
 enum class AuthStep {
@@ -71,16 +69,16 @@ fun AuthScreen(
 
     if (uiState is AuthUiState.Authenticated) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+            CircularProgressIndicator(color = AccentPurple)
         }
     } else {
         AuthScreenContent(
             uiState = uiState,
             onLogin = { shadeId, mnemonic ->
-                viewModel.login(shadeId, mnemonic, "Android Device", "dummy_fcm")
+                viewModel.login(shadeId, mnemonic, "Android Device")
             },
             onRegister = {
-                viewModel.register("Android Device", "dummy_fcm")
+                viewModel.register("Android Device")
             },
             onResetUiState = {
                 viewModel.resetUiState()
@@ -117,22 +115,16 @@ fun AuthScreenContent(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(MaterialTheme.colorScheme.background)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color(0xFF000000),
-                                Color(0xFF10002B),
-                                Color(0xFF000000)
-                            )
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            RichBlack,
+                            DeepPurple.copy(alpha = 0.6f),
+                            RichBlack
                         )
                     )
-            )
-
+                )
+        ) {
             AnimatedContent(
                 targetState = currentStep,
                 transitionSpec = {
@@ -149,7 +141,7 @@ fun AuthScreenContent(
                 label = "auth_transition"
             ) { step ->
                 val scrollState = rememberScrollState()
-                
+
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -187,31 +179,15 @@ fun WelcomeLayout(onNavigate: (AuthStep) -> Unit) {
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(if (isLandscape) 20.dp else 40.dp))
+        Spacer(modifier = Modifier.height(if (isLandscape) 20.dp else 48.dp))
 
-        // Logo Section
+        // Logo
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(
-                modifier = Modifier
-                    .size(if (isLandscape) 80.dp else 110.dp)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                                Color.Transparent
-                            )
-                        )
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_launcher_foreground),
-                    contentDescription = "Logo",
-                    modifier = Modifier.size(if (isLandscape) 60.dp else 90.dp),
-                    tint = Color.White
-                )
-            }
+            Image(
+                painter = painterResource(id = R.drawable.shade_logo),
+                contentDescription = "Shade Logo",
+                modifier = Modifier.size(if (isLandscape) 80.dp else 120.dp)
+            )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = stringResource(R.string.app_name),
@@ -222,14 +198,14 @@ fun WelcomeLayout(onNavigate: (AuthStep) -> Unit) {
             )
         }
 
-        Spacer(modifier = Modifier.height(if (isLandscape) 24.dp else 40.dp))
+        Spacer(modifier = Modifier.height(if (isLandscape) 24.dp else 44.dp))
 
         Column(
             modifier = Modifier
                 .fillMaxWidth(if (isLandscape) 0.7f else 0.95f)
                 .padding(horizontal = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
                 text = stringResource(R.string.welcome_greeting),
@@ -238,7 +214,7 @@ fun WelcomeLayout(onNavigate: (AuthStep) -> Unit) {
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
-            
+
             InfoBubble(
                 text = stringResource(R.string.privacy_motto),
                 icon = Icons.Default.Lock
@@ -253,7 +229,7 @@ fun WelcomeLayout(onNavigate: (AuthStep) -> Unit) {
             )
         }
 
-        Spacer(modifier = Modifier.height(if (isLandscape) 32.dp else 60.dp))
+        Spacer(modifier = Modifier.height(if (isLandscape) 32.dp else 56.dp))
 
         Column(
             modifier = Modifier
@@ -267,11 +243,15 @@ fun WelcomeLayout(onNavigate: (AuthStep) -> Unit) {
                     .fillMaxWidth()
                     .height(54.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
+                    containerColor = AccentPurple
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Text(stringResource(R.string.login), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    stringResource(R.string.login),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
 
             OutlinedButton(
@@ -285,7 +265,11 @@ fun WelcomeLayout(onNavigate: (AuthStep) -> Unit) {
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Text(stringResource(R.string.register), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    stringResource(R.string.register),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }
@@ -295,28 +279,36 @@ fun WelcomeLayout(onNavigate: (AuthStep) -> Unit) {
 fun InfoBubble(text: String, icon: ImageVector) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color.White.copy(alpha = 0.08f),
-        shape = RoundedCornerShape(20.dp),
+        color = Color.White.copy(alpha = 0.06f),
+        shape = RoundedCornerShape(16.dp),
         border = androidx.compose.foundation.BorderStroke(
-            width = 1.dp,
-            color = Color.White.copy(alpha = 0.1f)
+            width = 0.5.dp,
+            color = OutlineMuted
         )
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp)
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(22.dp)
-            )
-            Spacer(modifier = Modifier.width(16.dp))
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = AccentPurple.copy(alpha = 0.15f),
+                modifier = Modifier.size(36.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = AccentPurple,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(14.dp))
             Text(
                 text = text,
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.9f),
+                color = TextSecondary,
                 textAlign = TextAlign.Start
             )
         }
@@ -335,9 +327,9 @@ fun LoginLayout(
     Column(modifier = Modifier.fillMaxWidth()) {
         IconButton(onClick = onBack, modifier = Modifier.padding(top = 8.dp)) {
             Icon(
-                Icons.AutoMirrored.Filled.ArrowBack, 
+                Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back",
-                tint = Color.White
+                tint = TextPrimary
             )
         }
 
@@ -361,14 +353,15 @@ fun LoginLayout(
                 onValueChange = { shadeIdInput = it },
                 label = { Text(stringResource(R.string.shade_id)) },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = Color.Gray,
-                    focusedLabelColor = MaterialTheme.colorScheme.primary,
-                    unfocusedLabelColor = Color.Gray,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
+                    focusedBorderColor = AccentPurple,
+                    unfocusedBorderColor = OutlineMuted,
+                    focusedLabelColor = AccentPurple,
+                    unfocusedLabelColor = TextMuted,
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary,
+                    cursorColor = AccentPurple
                 )
             )
             Spacer(modifier = Modifier.height(16.dp))
@@ -377,15 +370,16 @@ fun LoginLayout(
                 onValueChange = { mnemonicInput = it },
                 label = { Text(stringResource(R.string.mnemonic_label)) },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text(stringResource(R.string.mnemonic_placeholder), color = Color.DarkGray) },
-                shape = RoundedCornerShape(16.dp),
+                placeholder = { Text(stringResource(R.string.mnemonic_placeholder), color = TextMuted) },
+                shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = Color.Gray,
-                    focusedLabelColor = MaterialTheme.colorScheme.primary,
-                    unfocusedLabelColor = Color.Gray,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
+                    focusedBorderColor = AccentPurple,
+                    unfocusedBorderColor = OutlineMuted,
+                    focusedLabelColor = AccentPurple,
+                    unfocusedLabelColor = TextMuted,
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary,
+                    cursorColor = AccentPurple
                 )
             )
             Spacer(modifier = Modifier.height(40.dp))
@@ -397,19 +391,35 @@ fun LoginLayout(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(60.dp),
-                shape = RoundedCornerShape(20.dp)
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
             ) {
                 if (uiState is AuthUiState.Loading) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
                 } else {
-                    Text(stringResource(R.string.login), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        stringResource(R.string.login),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
 
             if (uiState is AuthUiState.Error) {
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(uiState.message.asString(), color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+                Surface(
+                    color = ErrorRed.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        uiState.message.asString(),
+                        color = ErrorRed,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(12.dp),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
             }
         }
     }
@@ -423,14 +433,12 @@ fun RegisterLayout(
     onAuthSuccess: () -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
-    var acknowledged by rememberSaveable { mutableStateOf(false) }
-
     Column(modifier = Modifier.fillMaxWidth()) {
         IconButton(onClick = onBack, modifier = Modifier.padding(top = 8.dp)) {
             Icon(
                 Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back",
-                tint = Color.White
+                tint = TextPrimary
             )
         }
 
@@ -452,112 +460,43 @@ fun RegisterLayout(
             Text(
                 text = stringResource(R.string.register_notice),
                 textAlign = TextAlign.Center,
-                color = Color.LightGray,
+                color = TextSecondary,
+                style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(48.dp))
 
-            // Consent card
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .border(
-                        width = 1.5.dp,
-                        color = if (acknowledged)
-                            MaterialTheme.colorScheme.primary
-                        else
-                            Color.White.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(20.dp)
-                    )
-                    .clickable { acknowledged = !acknowledged },
-                color = if (acknowledged)
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                else
-                    Color.White.copy(alpha = 0.06f),
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 18.dp),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Shield,
-                        contentDescription = null,
-                        tint = if (acknowledged)
-                            MaterialTheme.colorScheme.primary
-                        else
-                            Color.White.copy(alpha = 0.4f),
-                        modifier = Modifier
-                            .size(28.dp)
-                            .padding(top = 2.dp)
-                    )
-                    Spacer(modifier = Modifier.width(14.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Güvenlik Bildirimi",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = if (acknowledged)
-                                MaterialTheme.colorScheme.primary
-                            else
-                                Color.White.copy(alpha = 0.7f)
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "Hesabım oluşturulduğunda kendime özel şifreleme anahtarları üretilecek. " +
-                                    "Bu anahtarlar yalnızca bende saklanır; kaybolmaları durumunda hesabıma " +
-                                    "bir daha erişemem. Bunu anlıyor ve kabul ediyorum.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.75f),
-                            lineHeight = 18.sp
-                        )
+            Button(
+                onClick = {
+                    if (uiState is AuthUiState.Success) {
+                        onAuthSuccess()
                     }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Checkbox(
-                        checked = acknowledged,
-                        onCheckedChange = { acknowledged = it },
-                        colors = CheckboxDefaults.colors(
-                            checkedColor = MaterialTheme.colorScheme.primary,
-                            uncheckedColor = Color.White.copy(alpha = 0.3f),
-                            checkmarkColor = Color.White
-                        )
-                    )
-                }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = SurfaceElevated),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("I understand, Continue", color = TextPrimary)
             }
-
-            Spacer(modifier = Modifier.height(28.dp))
 
             if (uiState !is AuthUiState.Success) {
                 Button(
                     onClick = onRegister,
-                    enabled = acknowledged,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(60.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        disabledContainerColor = Color.White.copy(alpha = 0.12f),
-                        disabledContentColor = Color.White.copy(alpha = 0.35f)
-                    )
+                        .height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
                 ) {
                     if (uiState is AuthUiState.Loading) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
                     } else {
-                        Text(stringResource(R.string.register_safely), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            stringResource(R.string.register_safely),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
-                }
-
-                if (!acknowledged) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = "Devam etmek için güvenlik bildirimini onaylayın",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.4f),
-                        textAlign = TextAlign.Center
-                    )
                 }
             }
 
@@ -567,7 +506,18 @@ fun RegisterLayout(
                 }
                 is AuthUiState.Error -> {
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(uiState.message.asString(), color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+                    Surface(
+                        color = ErrorRed.copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            uiState.message.asString(),
+                            color = ErrorRed,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
                 else -> {}
             }
@@ -580,19 +530,25 @@ fun SuccessSection(state: AuthUiState.Success, snackbarHostState: SnackbarHostSt
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            state.message.asString(),
-            color = Color(0xFF4CAF50), 
-            fontWeight = FontWeight.Bold, 
-            textAlign = TextAlign.Center
-        )
+        Surface(
+            color = SuccessGreen.copy(alpha = 0.1f),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text(
+                state.message.asString(),
+                color = SuccessGreen,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(12.dp)
+            )
+        }
 
         state.shadeId?.let { id ->
             Spacer(modifier = Modifier.height(24.dp))
@@ -606,8 +562,9 @@ fun SuccessSection(state: AuthUiState.Success, snackbarHostState: SnackbarHostSt
                             snackbarHostState.showSnackbar(context.getString(R.string.id_copied))
                         }
                     },
-                color = Color.White.copy(alpha = 0.1f),
-                shape = RoundedCornerShape(16.dp)
+                color = SurfaceElevated,
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(0.5.dp, OutlineMuted)
             ) {
                 Row(
                     modifier = Modifier.padding(16.dp),
@@ -618,19 +575,19 @@ fun SuccessSection(state: AuthUiState.Success, snackbarHostState: SnackbarHostSt
                         Text(
                             text = stringResource(R.string.shade_id),
                             style = MaterialTheme.typography.labelMedium,
-                            color = Color.LightGray
+                            color = TextMuted
                         )
                         Text(
                             text = id,
                             style = MaterialTheme.typography.titleMedium,
-                            color = Color.White,
+                            color = TextPrimary,
                             fontWeight = FontWeight.Bold
                         )
                     }
                     Icon(
                         imageVector = Icons.Default.ContentCopy,
                         contentDescription = "Copy ID",
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = AccentPurple,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -639,82 +596,67 @@ fun SuccessSection(state: AuthUiState.Success, snackbarHostState: SnackbarHostSt
 
         if (state.mnemonic.isNotEmpty()) {
             Spacer(modifier = Modifier.height(24.dp))
-            Text(
-                stringResource(R.string.save_mnemonic_warning),
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Tek tıkla tümünü kopyala butonu
             Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        val textToCopy = state.mnemonic.joinToString(" ")
-                        scope.launch {
-                            val clipData = ClipData.newPlainText("mnemonic", textToCopy)
-                            clipboard.setClipEntry(ClipEntry(clipData))
-                            snackbarHostState.showSnackbar("12 kelime kopyalandı ✓")
-                        }
-                    },
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                shape = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                )
+                color = ErrorRed.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ContentCopy,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Tüm Kelimeleri Kopyala",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
+                Text(
+                    stringResource(R.string.save_mnemonic_warning),
+                    color = ErrorRed,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(12.dp)
+                )
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(220.dp)
-                    .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(20.dp))
+                    .background(SurfaceElevated, RoundedCornerShape(16.dp))
                     .padding(12.dp)
             ) {
                 items(state.mnemonic) { word ->
                     Surface(
                         modifier = Modifier.padding(4.dp),
-                        color = Color.White.copy(alpha = 0.1f),
-                        shape = RoundedCornerShape(12.dp)
+                        color = SurfaceContainer,
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(
+                            0.5.dp, OutlineMuted
+                        )
                     ) {
                         Text(
                             text = word,
                             modifier = Modifier.padding(8.dp),
                             textAlign = TextAlign.Center,
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color.White,
+                            color = TextPrimary,
                             fontWeight = FontWeight.Medium
                         )
                     }
                 }
             }
-            
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Button(
+                onClick = {
+                    val textToCopy = state.mnemonic.joinToString(" ")
+                    scope.launch {
+                        val clipData = ClipData.newPlainText("mnemonic", textToCopy)
+                        clipboard.setClipEntry(ClipEntry(clipData))
+                        snackbarHostState.showSnackbar(context.getString(R.string.mnemonic_copied))
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text(stringResource(R.string.copy_mnemonic), color = Color.White, fontWeight = FontWeight.Medium)
+            }
         }
     }
 }

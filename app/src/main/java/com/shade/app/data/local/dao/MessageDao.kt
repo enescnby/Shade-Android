@@ -23,6 +23,12 @@ interface MessageDao{
     @Query("UPDATE messages SET status = :status WHERE messageId = :messageId")
     suspend fun updateMessageStatus(messageId: String, status: MessageStatus)
 
+    @Query("UPDATE messages SET imagePath = :path WHERE messageId = :messageId")
+    suspend fun updateImagePath(messageId: String, path: String)
+
+    @Query("SELECT status FROM messages WHERE messageId = :messageId")
+    suspend fun getMessageStatus(messageId: String): MessageStatus?
+
     @Query("SELECT * FROM messages WHERE (senderId = :chatId OR receiverId = :chatId) AND content LIKE '%' || :query || '%' ORDER BY timestamp DESC")
     fun searchMessages(chatId: String, query: String): Flow<List<MessageEntity>>
 

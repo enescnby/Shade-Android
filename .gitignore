@@ -39,3 +39,6 @@ desktop.ini
 app/google-services.json
 .kotlin/
 *.log
+
+app/rust/shade-crypto/target/
+app/src/main/jniLibs/
