@@ -7,6 +7,7 @@ interface ContactRepository {
     suspend fun insertContact(contact: ContactEntity)
     fun getAllContacts(): Flow<List<ContactEntity>>
     suspend fun getContactByShadeId(shadeId: String): ContactEntity?
+    suspend fun getContactByUserId(userId: String): ContactEntity?
     fun observeContactByShadeId(shadeId: String): Flow<ContactEntity?>
     fun searchContacts(query: String): Flow<List<ContactEntity>>
 

@@ -32,8 +32,10 @@ import com.shade.app.ui.chat.ChatScreen
 import com.shade.app.ui.contacts.ContactsScreen
 import com.shade.app.ui.home.HomeScreen
 import com.shade.app.ui.navigation.Screen
+import com.shade.app.ui.settings.SettingsScreen
 import com.shade.app.ui.theme.ShadeTheme
 import com.shade.app.ui.user.ProfileScreen
+import com.shade.app.ui.webpairing.WebPairingScreen
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -152,6 +154,10 @@ fun AppNavigation(
                     Log.d(TAG, "Home → Contacts ekranına geçiliyor")
                     navController.navigate(Screen.Contacts.route)
                 },
+                onSettingsClick = {
+                    Log.d(TAG, "Home → Settings")
+                    navController.navigate(Screen.Settings.route)
+                },
                 onLogout = {
                     Log.d(TAG, "Çıkış yapıldı → Auth ekranına dönülüyor")
                     navController.navigate(Screen.Auth.route) {
@@ -161,6 +167,44 @@ fun AppNavigation(
                 onSecurityAuditClick = {
                     Log.d(TAG, "Home → Güvenlik Günlüğü")
                     navController.navigate(Screen.SecurityAudit.route)
+                }
+            )
+        }
+
+        composable(Screen.Settings.route) {
+            Log.d(TAG, "→ Settings ekranı")
+            SettingsScreen(
+                onNavigateBack = {
+                    Log.d(TAG, "Settings → geri")
+                    navController.popBackStack()
+                },
+                onNavigateToContacts = {
+                    Log.d(TAG, "Settings → Kişiler")
+                    navController.navigate(Screen.Contacts.route)
+                },
+                onSecurityAuditClick = {
+                    Log.d(TAG, "Settings → Güvenlik Günlüğü")
+                    navController.navigate(Screen.SecurityAudit.route)
+                },
+                onWebPairingClick = {
+                    Log.d(TAG, "Settings → Web'e Bağlan")
+                    navController.navigate(Screen.WebPairing.route)
+                },
+                onLogout = {
+                    Log.d(TAG, "Settings → Çıkış")
+                    navController.navigate(Screen.Auth.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        composable(Screen.WebPairing.route) {
+            Log.d(TAG, "→ WebPairing ekranı")
+            WebPairingScreen(
+                onBackClick = {
+                    Log.d(TAG, "WebPairing → geri")
+                    navController.popBackStack()
                 }
             )
         }

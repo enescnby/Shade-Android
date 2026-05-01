@@ -4,6 +4,7 @@ import android.util.Base64
 import android.util.Log
 import com.google.gson.Gson
 import com.shade.app.crypto.MessageCryptoManager
+import com.shade.app.data.local.entities.ContactEntity
 import com.shade.app.data.local.entities.MessageEntity
 import com.shade.app.data.local.entities.MessageStatus
 import com.shade.app.domain.model.ImageMessageContent
@@ -34,11 +35,28 @@ class ReceiveMessageUseCase @Inject constructor(
 
     suspend operator fun invoke(payload: EncryptedPayload, sendReceipt: Boolean = true) {
         try {
-            val contact = contactRepository.getOrFetchContact(payload.senderShadeId) ?: return
             val myPrivateKeyHex = keyVaultManager.getX25519PrivateKey() ?: return
             val myShadeId = keyVaultManager.getShadeId() ?: return
 
-            val sharedSecret = cryptoManager.generateSharedSecret(myPrivateKeyHex, contact.encryptionPublicKey)
+            // Server, kullanıcının başka cihazından (örn. web) gönderdiği mesajı
+            // bu cihaza echo olarak iletebiliyor. Bu durumda payload.senderShadeId
+            // kendi shade_id'mize eşittir; karşı taraf payload.receiverId (user_id)
+            // ile temsil edilir ve şifre çözmek için ONUN pub key'i gerekir.
+            val isOutgoingEcho = payload.senderShadeId == myShadeId
+
+            val partner: ContactEntity = if (isOutgoingEcho) {
+                contactRepository.getContactByUserId(payload.receiverId) ?: run {
+                    Log.w(
+                        "ReceiveMessage",
+                        "Self-echo received but receiver_id=${payload.receiverId} is not in local contacts; skipping ${payload.messageId}"
+                    )
+                    return
+                }
+            } else {
+                contactRepository.getOrFetchContact(payload.senderShadeId) ?: return
+            }
+
+            val sharedSecret = cryptoManager.generateSharedSecret(myPrivateKeyHex, partner.encryptionPublicKey)
             val derivedKey = cryptoManager.deriveConversationKey(sharedSecret, 1)
 
             val decryptedText = try {
@@ -51,6 +69,10 @@ class ReceiveMessageUseCase @Inject constructor(
                 Log.e("ReceiveMessage", "Decryption failed: ${e.message}")
                 "Decryption Error"
             }
+
+            val entitySenderId = if (isOutgoingEcho) myShadeId else partner.shadeId
+            val entityReceiverId = if (isOutgoingEcho) partner.shadeId else myShadeId
+            val entityStatus = if (isOutgoingEcho) MessageStatus.SENT else MessageStatus.DELIVERED
 
             val entity = when (payload.type) {
                 MessageType.IMAGE -> {
@@ -65,11 +87,11 @@ class ReceiveMessageUseCase @Inject constructor(
 
                     MessageEntity(
                         messageId = payload.messageId,
-                        senderId = contact.shadeId,
-                        receiverId = myShadeId,
+                        senderId = entitySenderId,
+                        receiverId = entityReceiverId,
                         content = decryptedText,
                         timestamp = payload.timestamp,
-                        status = MessageStatus.DELIVERED,
+                        status = entityStatus,
                         messageType = com.shade.app.data.local.entities.MessageType.IMAGE,
                         thumbnailPath = thumbnailPath,
                         imagePath = null
@@ -78,11 +100,11 @@ class ReceiveMessageUseCase @Inject constructor(
                 else -> {
                     MessageEntity(
                         messageId = payload.messageId,
-                        senderId = contact.shadeId,
-                        receiverId = myShadeId,
+                        senderId = entitySenderId,
+                        receiverId = entityReceiverId,
                         content = decryptedText,
                         timestamp = payload.timestamp,
-                        status = MessageStatus.DELIVERED,
+                        status = entityStatus,
                         messageType = com.shade.app.data.local.entities.MessageType.TEXT
                     )
                 }
@@ -91,20 +113,26 @@ class ReceiveMessageUseCase @Inject constructor(
             messageRepository.insertMessage(entity)
 
             val lastMessageText = if (payload.type == MessageType.IMAGE) "\uD83D\uDCF7 Fotoğraf" else decryptedText
-            if (activeChatTracker.activeShadeId == contact.shadeId) {
-                chatRepository.updateLastMessage(contact.shadeId, lastMessageText, payload.timestamp)
+            if (isOutgoingEcho) {
+                // Kendi gönderdiğimiz mesaj; unread count'u kabartmıyoruz, bildirim atmıyoruz,
+                // delivery receipt göndermiyoruz.
+                chatRepository.updateLastMessage(partner.shadeId, lastMessageText, payload.timestamp)
             } else {
-                chatRepository.updateChatWithNewMessage(contact.shadeId, lastMessageText, payload.timestamp)
-            }
+                if (activeChatTracker.activeShadeId == partner.shadeId) {
+                    chatRepository.updateLastMessage(partner.shadeId, lastMessageText, payload.timestamp)
+                } else {
+                    chatRepository.updateChatWithNewMessage(partner.shadeId, lastMessageText, payload.timestamp)
+                }
 
-            if (sendReceipt) {
-                sendReceiptUseCase(payload.messageId, contact.shadeId, MessageStatus.DELIVERED)
-            }
+                if (sendReceipt) {
+                    sendReceiptUseCase(payload.messageId, partner.shadeId, MessageStatus.DELIVERED)
+                }
 
-            if (activeChatTracker.activeShadeId != contact.shadeId) {
-                val displayName = contact.savedName ?: contact.shadeId
-                val notifText = if (payload.type == MessageType.IMAGE) "\uD83D\uDCF7 Fotoğraf" else decryptedText
-                notificationHelper.showMessageNotification(displayName, notifText, contact.shadeId)
+                if (activeChatTracker.activeShadeId != partner.shadeId) {
+                    val displayName = partner.savedName ?: partner.shadeId
+                    val notifText = if (payload.type == MessageType.IMAGE) "\uD83D\uDCF7 Fotoğraf" else decryptedText
+                    notificationHelper.showMessageNotification(displayName, notifText, partner.shadeId)
+                }
             }
         } catch (e: Exception) {
             Log.e("ReceiveMessage", "Exception in ReceiveMessageUseCase: ${e.message}")

@@ -15,7 +15,6 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 import com.shade.app.data.remote.websocket.MessageListener
-import com.shade.app.domain.usecase.message.FetchUndeliveredMessagesUseCase
 import com.shade.app.security.KeyVaultManager
 import com.shade.app.worker.FetchMessagesWorker
 import dagger.hilt.EntryPoint

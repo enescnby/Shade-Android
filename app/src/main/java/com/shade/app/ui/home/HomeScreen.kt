@@ -12,6 +12,7 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,6 +34,7 @@ private const val TAG = "SHADE_HOME"
 fun HomeScreen(
     onChatClick: (String, String) -> Unit,
     onNavigateToContacts: () -> Unit,
+    onSettingsClick: () -> Unit = {},
     onLogout: () -> Unit = {},
     onSecurityAuditClick: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
@@ -69,6 +71,12 @@ fun HomeScreen(
                         onSecurityAuditClick()
                     }) {
                         Icon(Icons.Default.Security, contentDescription = "Hesap Etkinliği")
+                    }
+                    IconButton(onClick = {
+                        Log.d(TAG, "Ayarlar butonuna tıklandı")
+                        onSettingsClick()
+                    }) {
+                        Icon(Icons.Default.Settings, contentDescription = "Ayarlar")
                     }
                     IconButton(onClick = {
                         Log.d(TAG, "Çıkış butonuna tıklandı")

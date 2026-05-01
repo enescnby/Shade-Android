@@ -25,6 +25,10 @@ class ContactRepositoryImpl @Inject constructor(
         return contactDao.getContactByShadeId(shadeId)
     }
 
+    override suspend fun getContactByUserId(userId: String): ContactEntity? {
+        return contactDao.getContactByUserId(userId)
+    }
+
     override fun observeContactByShadeId(shadeId: String): Flow<ContactEntity?> {
         return contactDao.observeContactByShadeId(shadeId)
     }

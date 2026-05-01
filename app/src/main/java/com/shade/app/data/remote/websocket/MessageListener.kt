@@ -3,7 +3,7 @@ package com.shade.app.data.remote.websocket
 import android.util.Log
 import com.shade.app.BuildConfig
 import com.shade.app.domain.repository.MessageRepository
-import com.shade.app.domain.usecase.message.FetchPendingReceiptsUseCase
+import com.shade.app.domain.usecase.message.FetchInboxUseCase
 import com.shade.app.domain.usecase.message.HandleIncomingReceiptUseCase
 import com.shade.app.domain.usecase.message.ReceiveMessageUseCase
 import com.shade.app.proto.MessageAck
@@ -23,7 +23,7 @@ import javax.inject.Singleton
 class MessageListener @Inject constructor(
     private val receiveMessageUseCase: ReceiveMessageUseCase,
     private val handleIncomingReceiptUseCase: HandleIncomingReceiptUseCase,
-    private val fetchPendingReceiptsUseCase: FetchPendingReceiptsUseCase,
+    private val fetchInboxUseCase: FetchInboxUseCase,
     private val messageRepository: MessageRepository,
     private val webSocketManager: ShadeWebSocketManager
 ){
@@ -38,7 +38,7 @@ class MessageListener @Inject constructor(
         Log.d("MessageManager", "Listening to WebSocket ...")
 
         managerScope.launch {
-            fetchPendingReceiptsUseCase()
+            fetchInboxUseCase()
         }
 
         messageRepository.observeIncomingMessages()
@@ -71,7 +71,7 @@ class MessageListener @Inject constructor(
             webSocketManager.connect(BuildConfig.WS_URL)
 
             managerScope.launch {
-                fetchPendingReceiptsUseCase()
+                fetchInboxUseCase()
             }
         } else {
             startListening()
