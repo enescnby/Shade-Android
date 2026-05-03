@@ -5,8 +5,10 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
@@ -24,6 +26,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -32,6 +35,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -78,7 +82,25 @@ fun ChatScreen(
     var pendingTranslationContent by remember { mutableStateOf("") }
     var showLanguageDialog by remember { mutableStateOf(false) }
 
+    val translationDisclaimerAccepted by viewModel.translationDisclaimerAccepted.collectAsState()
+    var showTranslationDisclaimer by remember { mutableStateOf(false) }
+    var disclaimerPendingMessageId by remember { mutableStateOf<String?>(null) }
+    var disclaimerPendingContent by remember { mutableStateOf("") }
+
+    val requestTranslate: (String, String) -> Unit = { messageId, content ->
+        if (translationDisclaimerAccepted) {
+            pendingTranslationMessageId = messageId
+            pendingTranslationContent = content
+            showLanguageDialog = true
+        } else {
+            disclaimerPendingMessageId = messageId
+            disclaimerPendingContent = content
+            showTranslationDisclaimer = true
+        }
+    }
+
     val listState = rememberLazyListState()
+    val scheme = MaterialTheme.colorScheme
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
@@ -86,11 +108,44 @@ fun ChatScreen(
         uri?.let { viewModel.sendImage(it) }
     }
 
+    if (showTranslationDisclaimer) {
+        AlertDialog(
+            onDismissRequest = {
+                showTranslationDisclaimer = false
+                disclaimerPendingMessageId = null
+            },
+            title = { Text(stringResource(R.string.translation_disclaimer_title)) },
+            text = { Text(stringResource(R.string.translation_disclaimer_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.acknowledgeTranslationDisclaimer()
+                        val id = disclaimerPendingMessageId
+                        val body = disclaimerPendingContent
+                        showTranslationDisclaimer = false
+                        disclaimerPendingMessageId = null
+                        if (id != null) {
+                            pendingTranslationMessageId = id
+                            pendingTranslationContent = body
+                            showLanguageDialog = true
+                        }
+                    }
+                ) { Text(stringResource(R.string.translation_disclaimer_continue)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showTranslationDisclaimer = false
+                    disclaimerPendingMessageId = null
+                }) { Text(stringResource(R.string.translation_disclaimer_cancel)) }
+            }
+        )
+    }
+
     // Language selection dialog
     if (showLanguageDialog) {
         AlertDialog(
             onDismissRequest = { showLanguageDialog = false },
-            title = { Text("Dil Seçin", color = TextPrimary) },
+            title = { Text(stringResource(R.string.translate_pick_language), color = scheme.onSurface) },
             text = {
                 LazyColumn {
                     items(LANGUAGES) { (label, code) ->
@@ -110,7 +165,9 @@ fun ChatScreen(
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { showLanguageDialog = false }) { Text("İptal") }
+                TextButton(onClick = { showLanguageDialog = false }) {
+                    Text(stringResource(R.string.translate_cancel))
+                }
             }
         )
     }
@@ -144,11 +201,11 @@ fun ChatScreen(
     }
 
     Scaffold(
-        containerColor = RichBlack,
+        containerColor = scheme.background,
         topBar = {
             if (uiState.isSearchActive) {
                 Surface(
-                    color = SurfaceDark,
+                    color = scheme.surface,
                     shadowElevation = 4.dp
                 ) {
                     Row(
@@ -159,12 +216,12 @@ fun ChatScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(onClick = { viewModel.toggleSearch() }) {
-                            Icon(Icons.Default.Close, contentDescription = "Aramayı Kapat", tint = TextPrimary)
+                            Icon(Icons.Default.Close, contentDescription = "Aramayı Kapat", tint = scheme.onSurface)
                         }
                         OutlinedTextField(
                             value = uiState.searchQuery,
                             onValueChange = { viewModel.onSearchQueryChange(it) },
-                            placeholder = { Text("Mesajlarda ara...", color = TextMuted) },
+                            placeholder = { Text("Mesajlarda ara...", color = scheme.onSurfaceVariant) },
                             modifier = Modifier
                                 .weight(1f)
                                 .padding(end = 8.dp),
@@ -172,9 +229,9 @@ fun ChatScreen(
                             shape = RoundedCornerShape(24.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = AccentPurple,
-                                unfocusedBorderColor = OutlineMuted,
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary,
+                                unfocusedBorderColor = scheme.outline,
+                                focusedTextColor = scheme.onSurface,
+                                unfocusedTextColor = scheme.onSurface,
                                 cursorColor = AccentPurple
                             )
                         )
@@ -182,7 +239,7 @@ fun ChatScreen(
                 }
             } else {
                 Surface(
-                    color = SurfaceDark,
+                    color = scheme.surface,
                     shadowElevation = 4.dp
                 ) {
                     Row(
@@ -196,7 +253,7 @@ fun ChatScreen(
                             Icon(
                                 Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Geri",
-                                tint = TextPrimary
+                                tint = scheme.onSurface
                             )
                         }
 
@@ -225,7 +282,7 @@ fun ChatScreen(
                             Text(
                                 text = uiState.chatName,
                                 style = MaterialTheme.typography.titleMedium,
-                                color = TextPrimary
+                                color = scheme.onSurface
                             )
                             val subtitle = uiState.lastSeenText.ifBlank { "Profil detayları" }
                             Text(
@@ -234,12 +291,12 @@ fun ChatScreen(
                                 color = if (uiState.lastSeenText == "Çevrimiçi")
                                     Color(0xFF4CAF50)
                                 else
-                                    TextMuted
+                                    scheme.onSurfaceVariant
                             )
                         }
 
                         IconButton(onClick = { viewModel.toggleSearch() }) {
-                            Icon(Icons.Default.Search, contentDescription = "Mesajlarda Ara", tint = TextPrimary)
+                            Icon(Icons.Default.Search, contentDescription = "Mesajlarda Ara", tint = scheme.onSurface)
                         }
                     }
                 }
@@ -262,7 +319,7 @@ fun ChatScreen(
                         Text(
                             "Sonuç bulunamadı",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary
+                            color = scheme.onSurfaceVariant
                         )
                     }
                 } else {
@@ -284,9 +341,7 @@ fun ChatScreen(
                                 onImageClick = { path -> fullScreenImagePath = path },
                                 onDownloadClick = { viewModel.downloadImage(message) },
                                 onTranslateRequest = {
-                                    pendingTranslationMessageId = message.messageId
-                                    pendingTranslationContent = message.content
-                                    showLanguageDialog = true
+                                    requestTranslate(message.messageId, message.content)
                                 }
                             )
                         }
@@ -317,9 +372,7 @@ fun ChatScreen(
                             onImageClick = { path -> fullScreenImagePath = path },
                             onDownloadClick = { viewModel.downloadImage(message) },
                             onTranslateRequest = {
-                                pendingTranslationMessageId = message.messageId
-                                pendingTranslationContent = message.content
-                                showLanguageDialog = true
+                                requestTranslate(message.messageId, message.content)
                             }
                         )
 
@@ -331,7 +384,7 @@ fun ChatScreen(
 
                 // Modern input bar
                 Surface(
-                    color = SurfaceDark,
+                    color = scheme.surface,
                     shadowElevation = 8.dp
                 ) {
                     Row(
@@ -361,17 +414,17 @@ fun ChatScreen(
                             onValueChange = { messageText = it },
                             modifier = Modifier.weight(1f),
                             placeholder = {
-                                Text("Mesaj yaz...", color = TextMuted)
+                                Text("Mesaj yaz...", color = scheme.onSurfaceVariant)
                             },
                             shape = RoundedCornerShape(24.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = SurfaceContainer,
-                                unfocusedContainerColor = SurfaceContainer,
+                                focusedContainerColor = scheme.surfaceContainerHigh,
+                                unfocusedContainerColor = scheme.surfaceContainerHigh,
                                 focusedBorderColor = AccentPurple.copy(alpha = 0.5f),
                                 unfocusedBorderColor = Color.Transparent,
                                 cursorColor = AccentPurple,
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary
+                                focusedTextColor = scheme.onSurface,
+                                unfocusedTextColor = scheme.onSurface
                             ),
                             maxLines = 4
                         )
@@ -390,13 +443,13 @@ fun ChatScreen(
                                 .size(48.dp)
                                 .align(Alignment.Bottom),
                             shape = CircleShape,
-                            color = if (sendEnabled) AccentPurple else SurfaceContainer
+                            color = if (sendEnabled) AccentPurple else scheme.surfaceContainerHigh
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.Send,
                                     contentDescription = "Gönder",
-                                    tint = if (sendEnabled) Color.White else TextMuted,
+                                    tint = if (sendEnabled) Color.White else scheme.onSurfaceVariant,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -424,6 +477,7 @@ fun MessageItem(
     val timeString = remember(message.timestamp) {
         dateFormatter.format(Date(message.timestamp))
     }
+    val scheme = MaterialTheme.colorScheme
 
     Box(
         modifier = Modifier
@@ -444,23 +498,39 @@ fun MessageItem(
                 bottomEnd = if (isMe) 4.dp else 18.dp
             )
 
-            Surface(
-                shape = bubbleShape,
-                color = if (isMe) Color.Transparent else BubbleOther,
-                border = if (!isMe) androidx.compose.foundation.BorderStroke(
-                    0.5.dp, BubbleOtherBorder
-                ) else null,
-                modifier = Modifier.widthIn(max = 300.dp)
-            ) {
-                val bgModifier = if (isMe) {
-                    Modifier.background(
-                        Brush.linearGradient(
-                            colors = listOf(BubbleMine, BubbleMineEnd)
-                        )
-                    )
-                } else Modifier
+            var contextMenuExpanded by remember { mutableStateOf(false) }
 
-                Column(modifier = bgModifier) {
+            Box {
+                val bubbleModifier = Modifier
+                    .widthIn(max = 300.dp)
+                    .then(
+                        if (message.messageType == MessageType.TEXT) {
+                            Modifier.combinedClickable(
+                                onClick = {},
+                                onLongClick = { contextMenuExpanded = true }
+                            )
+                        } else {
+                            Modifier
+                        }
+                    )
+
+                Surface(
+                    shape = bubbleShape,
+                    color = if (isMe) Color.Transparent else scheme.surfaceVariant,
+                    border = if (!isMe) androidx.compose.foundation.BorderStroke(
+                        0.5.dp, scheme.outline
+                    ) else null,
+                    modifier = bubbleModifier
+                ) {
+                    val bgModifier = if (isMe) {
+                        Modifier.background(
+                            Brush.linearGradient(
+                                colors = listOf(BubbleMine, BubbleMineEnd)
+                            )
+                        )
+                    } else Modifier
+
+                    Column(modifier = bgModifier) {
                     if (message.messageType == MessageType.IMAGE) {
                         Box(contentAlignment = Alignment.BottomEnd) {
                             if (message.imagePath != null) {
@@ -490,7 +560,7 @@ fun MessageItem(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .height(160.dp)
-                                                .background(SurfaceContainer)
+                                                .background(scheme.surfaceContainerHigh)
                                         )
                                     }
 
@@ -570,7 +640,7 @@ fun MessageItem(
                         Column {
                             Text(
                                 text = message.content,
-                                color = if (isMe) Color.White else TextPrimary,
+                                color = if (isMe) Color.White else scheme.onSurface,
                                 style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.padding(
                                     start = 12.dp, end = 12.dp,
@@ -599,7 +669,7 @@ fun MessageItem(
                                 Text(
                                     text = translatedText,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = if (isMe) Color.White.copy(alpha = 0.85f) else TextSecondary,
+                                    color = if (isMe) Color.White.copy(alpha = 0.85f) else scheme.onSurfaceVariant,
                                     fontStyle = FontStyle.Italic,
                                     modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 4.dp)
                                 )
@@ -615,7 +685,7 @@ fun MessageItem(
                                 Text(
                                     text = timeString,
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = if (isMe) Color.White.copy(alpha = 0.65f) else TextMuted,
+                                    color = if (isMe) Color.White.copy(alpha = 0.65f) else scheme.onSurfaceVariant,
                                     fontSize = 10.sp
                                 )
                                 if (isMe) {
@@ -625,23 +695,91 @@ fun MessageItem(
                         }
                     }
                 }
-            }
+                }
 
-            // Translate button (only for text messages)
-            if (message.messageType == MessageType.TEXT) {
-                IconButton(
-                    onClick = onTranslateRequest,
-                    modifier = Modifier.size(20.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Language,
-                        contentDescription = "Çevir",
-                        modifier = Modifier.size(13.dp),
-                        tint = TextMuted.copy(alpha = 0.5f)
+                if (message.messageType == MessageType.TEXT) {
+                    MessageBubbleContextMenu(
+                        expanded = contextMenuExpanded,
+                        onDismissRequest = { contextMenuExpanded = false },
+                        onTranslateSelected = onTranslateRequest
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MessageBubbleContextMenu(
+    expanded: Boolean,
+    onDismissRequest: () -> Unit,
+    onTranslateSelected: () -> Unit
+) {
+    val scheme = MaterialTheme.colorScheme
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismissRequest,
+        modifier = Modifier.widthIn(min = 228.dp),
+        offset = DpOffset(x = 0.dp, y = 4.dp),
+        shape = RoundedCornerShape(18.dp),
+        containerColor = scheme.surfaceContainerHigh,
+        tonalElevation = 2.dp,
+        shadowElevation = 10.dp,
+        border = BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = 0.65f))
+    ) {
+        DropdownMenuItem(
+            modifier = Modifier.heightIn(min = 56.dp),
+            text = {
+                Column(
+                    Modifier.padding(top = 2.dp, bottom = 2.dp, end = 6.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.message_menu_translate),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = scheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = stringResource(R.string.message_menu_translate_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant,
+                        lineHeight = 18.sp
+                    )
+                }
+            },
+            onClick = {
+                onDismissRequest()
+                onTranslateSelected()
+            },
+            colors = MenuDefaults.itemColors(
+                textColor = scheme.onSurface
+            ),
+            leadingIcon = {
+                Surface(
+                    shape = CircleShape,
+                    color = scheme.primaryContainer,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        Icon(
+                            imageVector = Icons.Default.Language,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
+                            tint = scheme.onPrimaryContainer
+                        )
+                    }
+                }
+            },
+            trailingIcon = {
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp),
+                    tint = scheme.onSurfaceVariant.copy(alpha = 0.55f)
+                )
+            }
+        )
     }
 }
 

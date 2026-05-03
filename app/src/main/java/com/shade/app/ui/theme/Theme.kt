@@ -38,19 +38,31 @@ private val DarkColorScheme = darkColorScheme(
 
 private val LightColorScheme = lightColorScheme(
     primary = ElectricPurple,
-    secondary = SoftPurple,
-    tertiary = AccentPurple,
-    background = Color.White,
-    surface = Color(0xFFF3E5F5),
     onPrimary = Color.White,
+    primaryContainer = Color(0xFFE9D5FF),
+    onPrimaryContainer = Color(0xFF2D0660),
+    secondary = SoftPurple,
     onSecondary = Color.White,
+    secondaryContainer = Color(0xFFF3E8FF),
+    onSecondaryContainer = DarkBlack,
+    tertiary = AccentPurple,
+    onTertiary = Color.White,
+    background = Color(0xFFFDF8FF),
     onBackground = DarkBlack,
-    onSurface = DarkBlack
+    surface = Color.White,
+    onSurface = DarkBlack,
+    surfaceVariant = Color(0xFFEDE7F3),
+    onSurfaceVariant = Color(0xFF4A4458),
+    surfaceContainerHigh = Color(0xFFF3EDFA),
+    outline = Color(0xFFCCC2DC),
+    outlineVariant = Color(0xFFE0D8EA),
+    error = ErrorRed,
+    onError = Color.White
 )
 
 @Composable
 fun ShadeTheme(
-    darkTheme: Boolean = true,
+    darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme

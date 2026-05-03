@@ -15,6 +15,7 @@ data class RegisterRequest(
 data class RegisterResponse(
     @SerializedName("core_guard_id") val shadeId: String,
     @SerializedName("user_id") val userId: String?,
+    @SerializedName("device_id") val deviceID: String,
     @SerializedName("message") val message: String
 )
 
@@ -34,12 +35,14 @@ data class LoginVerifyRequest(
     @SerializedName("challenge") val challenge: String,
     @SerializedName("signature") val signature: String,
     @SerializedName("device_model") val deviceModel: String,
-    @SerializedName("fcm_token") val fcmToken: String
+    @SerializedName("fcm_token") val fcmToken: String,
+    @SerializedName("device_id") val deviceId: String? = null
 )
 
 data class LoginVerifyResponse(
     @SerializedName("core_guard_id") val shadeId: String,
     @SerializedName("user_id") val userId: String,
     @SerializedName("access_token") val accessToken: String,
+    @SerializedName("device_id") val deviceId: String,
     @SerializedName("message") val message: String
 )

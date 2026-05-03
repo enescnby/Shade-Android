@@ -1,6 +1,7 @@
 package com.shade.app
 
 import android.Manifest
+import android.app.ActivityManager
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -9,11 +10,18 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
@@ -24,6 +32,8 @@ import androidx.navigation.navArgument
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.firebase.messaging.FirebaseMessaging
+import com.shade.app.data.preferences.ThemeMode
+import com.shade.app.data.preferences.ThemePreferenceRepository
 import com.shade.app.security.KeyVaultManager
 import kotlinx.coroutines.launch
 import com.shade.app.ui.audit.SecurityAuditScreen
@@ -47,6 +57,9 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var keyVaultManager: KeyVaultManager
 
+    @Inject
+    lateinit var themePreferenceRepository: ThemePreferenceRepository
+
     private val requestNotificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
             Log.d("FCM", "Notification permission granted: $isGranted")
@@ -54,6 +67,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        applyRecentAppsBranding()
         // Ekran görüntüsü ve ekran kaydını engelle (gizlilik uygulaması için zorunlu)
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         Log.d(TAG, "MainActivity onCreate")
@@ -64,12 +78,20 @@ class MainActivity : ComponentActivity() {
         val pendingChatName = intent?.getStringExtra("chatName")
 
         setContent {
-            ShadeTheme {
+            val themeMode by themePreferenceRepository.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
+            val systemDark = isSystemInDarkTheme()
+            val useDarkTheme = when (themeMode) {
+                ThemeMode.DARK -> true
+                ThemeMode.LIGHT -> false
+                ThemeMode.SYSTEM -> systemDark
+            }
+            ShadeTheme(darkTheme = useDarkTheme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
                     AppNavigation(
+                        keyVaultManager = keyVaultManager,
                         pendingChatId = pendingChatId,
                         pendingChatName = pendingChatName
                     )
@@ -108,28 +130,72 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    /** Recent/overview küçük ikonunun güncel @mipmap/ic_launcher ile eşleşmesi için (splash ile uyumlu). */
+    private fun applyRecentAppsBranding() {
+        val label = getString(R.string.app_name)
+        val color = ContextCompat.getColor(this, R.color.splash_screen_background)
+        try {
+            when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
+                    val desc = ActivityManager.TaskDescription.Builder()
+                        .setLabel(label)
+                        .setIcon(R.mipmap.ic_launcher)
+                        .build()
+                    setTaskDescription(desc)
+                }
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.P -> {
+                    @Suppress("DEPRECATION")
+                    setTaskDescription(
+                        ActivityManager.TaskDescription(label, R.mipmap.ic_launcher, color)
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Recent apps branding: ${e.message}")
+        }
+    }
 }
 
 @Composable
 fun AppNavigation(
+    keyVaultManager: KeyVaultManager,
     pendingChatId: String? = null,
     pendingChatName: String? = null
 ) {
     val navController = rememberNavController()
+    var startDestination by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(pendingChatId) {
-        if (pendingChatId != null && pendingChatName != null) {
-            navController.navigate(Screen.Home.route) {
-                popUpTo(Screen.Auth.route) { inclusive = true }
-            }
-            navController.navigate(Screen.Chat.createRoute(pendingChatId, pendingChatName))
+    LaunchedEffect(keyVaultManager) {
+        startDestination = if (keyVaultManager.hasStoredAccessToken()) {
+            Screen.Home.route
+        } else {
+            Screen.Auth.route
         }
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = Screen.Auth.route
-    ) {
+    if (startDestination == null) {
+        Box(modifier = Modifier.fillMaxSize())
+    } else {
+        val start = startDestination!!
+        LaunchedEffect(pendingChatId, pendingChatName, start) {
+            if (pendingChatId != null && pendingChatName != null) {
+                val chatRoute = Screen.Chat.createRoute(pendingChatId, pendingChatName)
+                if (start == Screen.Auth.route) {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Auth.route) { inclusive = true }
+                    }
+                    navController.navigate(chatRoute)
+                } else {
+                    navController.navigate(chatRoute)
+                }
+            }
+        }
+
+        NavHost(
+            navController = navController,
+            startDestination = start
+        ) {
         composable(Screen.Auth.route) {
             Log.d(TAG, "→ Auth ekranı")
             AuthScreen(
@@ -163,10 +229,6 @@ fun AppNavigation(
                     navController.navigate(Screen.Auth.route) {
                         popUpTo(0) { inclusive = true }
                     }
-                },
-                onSecurityAuditClick = {
-                    Log.d(TAG, "Home → Güvenlik Günlüğü")
-                    navController.navigate(Screen.SecurityAudit.route)
                 }
             )
         }
@@ -267,6 +329,7 @@ fun AppNavigation(
                     navController.popBackStack()
                 }
             )
+        }
         }
     }
 }

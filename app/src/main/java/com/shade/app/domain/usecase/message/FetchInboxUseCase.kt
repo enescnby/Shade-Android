@@ -32,18 +32,21 @@ class FetchInboxUseCase @Inject constructor(
         try {
             val token = keyVaultManager.getAccessToken() ?: return
             val safeLimit = limit.coerceIn(1, MAX_LIMIT)
-            val response = messageService.getInbox("Bearer $token", safeLimit)
+            while (true) {
+                val response = messageService.getInbox("Bearer $token", safeLimit)
 
-            if (!response.isSuccessful) {
-                Log.e(TAG, "HTTP ${response.code()}: ${response.message()}")
-                return
+                if (!response.isSuccessful) {
+                    Log.e(TAG, "HTTP ${response.code()}: ${response.message()}")
+                    return
+                }
+
+                val body = response.body() ?: return
+                Log.d(TAG, "Inbox batch: ${body.messages.size} message(s), ${body.receipts.size} receipt(s)")
+                if (body.messages.isEmpty() && body.receipts.isEmpty()) break
+
+                body.messages.forEach { processMessage(it) }
+                body.receipts.forEach { processReceipt(it) }
             }
-
-            val body = response.body() ?: return
-            Log.d(TAG, "Inbox drained: ${body.messages.size} message(s), ${body.receipts.size} receipt(s)")
-
-            body.messages.forEach { processMessage(it) }
-            body.receipts.forEach { processReceipt(it) }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch inbox: ${e.message}")
         }

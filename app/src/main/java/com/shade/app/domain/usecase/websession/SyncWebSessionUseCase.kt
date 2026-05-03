@@ -8,23 +8,15 @@ import com.shade.app.data.local.dao.ChatDao
 import com.shade.app.data.local.dao.MessageDao
 import com.shade.app.data.remote.websocket.WebSyncSocketManager
 import com.shade.app.security.KeyVaultManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
- * Authorize → WS connect başarılı olduktan sonra çağırılır.
- *
- * Mesajlar **transfer key** ile şifrelenir (authorize handshake'inde türetilen
- * ChaCha20-Poly1305 key, HKDF info "Shade-Web-Pairing-v1"). Web tarafı aynı
- * key'e sahip olduğu için decrypt edebilir; per-contact key türetimine gerek
- * yok.
- *
- * Akış:
- *   for each chat:
- *     send { "type":"batch", "messages":[ ... ] }
- *   send { "type":"sync_complete" }
+ * Web ile konuşma geçmişini WS üzerinden senkronize eder.
+ * Mesajlar JSON **text** frame olarak gönderilir; batch ardından `sync_complete`.
  */
 class SyncWebSessionUseCase @Inject constructor(
     private val socketManager: WebSyncSocketManager,
@@ -35,16 +27,22 @@ class SyncWebSessionUseCase @Inject constructor(
 ) {
     private val gson = Gson()
 
-    suspend operator fun invoke(): Result<Int> = runCatching {
-        withContext(Dispatchers.IO) { syncBlocking() }
-    }
+    suspend operator fun invoke(): Result<Int> =
+        try {
+            Result.success(withContext(Dispatchers.IO) { syncBlocking() })
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Result.failure(e)
+        }
 
     private suspend fun syncBlocking(): Int {
         if (!pairingCrypto.isSessionActive()) {
             error("Pairing session not active (transfer key missing)")
         }
         val myShadeId = keyVault.getShadeId() ?: error("shade_id missing")
-        Log.d(TAG, "Sync started, myShadeId=$myShadeId")
+
+        Log.d(TAG, "Sync started myShadeId=$myShadeId")
 
         val chats = chatDao.getAllChats().first()
         Log.d(TAG, "Found ${chats.size} chats")
@@ -72,22 +70,21 @@ class SyncWebSessionUseCase @Inject constructor(
                 )
             }
 
-            val batch = SyncBatch(type = "batch", messages = items)
-            val json = gson.toJson(batch)
-
-            val ok = socketManager.sendText(json)
+            val batch = SyncBatch(type = TYPE_BATCH, messages = items)
+            val payload = gson.toJson(batch)
+            val ok = socketManager.sendText(payload)
             Log.d(
                 TAG,
-                "Batch sent: chat=$contactShadeId  count=${items.size}  bytes=${json.length}  ok=$ok"
+                "Batch sent: chat=$contactShadeId  count=${items.size}  chars=${payload.length}  ok=$ok"
             )
             if (!ok) error("WS send failed for chat=$contactShadeId")
             total += items.size
         }
 
-        val complete = gson.toJson(SyncComplete(type = "sync_complete"))
-        val ok = socketManager.sendText(complete)
-        Log.d(TAG, "sync_complete sent  ok=$ok  totalMessages=$total")
-        if (!ok) error("WS send failed for sync_complete")
+        val completeJson = gson.toJson(SyncComplete(type = TYPE_SYNC_COMPLETE))
+        val completeOk = socketManager.sendText(completeJson)
+        Log.d(TAG, "sync_complete sent  ok=$completeOk  totalMessages=$total")
+        if (!completeOk) error("WS send failed for sync_complete")
 
         return total
     }
@@ -112,5 +109,7 @@ class SyncWebSessionUseCase @Inject constructor(
 
     private companion object {
         const val TAG = "SyncWebSession"
+        const val TYPE_BATCH = "batch"
+        const val TYPE_SYNC_COMPLETE = "sync_complete"
     }
 }

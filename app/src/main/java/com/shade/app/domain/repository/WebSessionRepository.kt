@@ -8,6 +8,7 @@ interface WebSessionRepository {
     suspend fun createWebSession(): Result<WebSessionCreated>
     suspend fun getWebSession(sessionId: String): Result<WebSessionStatus>
     suspend fun authorizeWebSession(
+        token: String,
         sessionId: String,
         payload: WebSessionAuthorizationPayload
     ): Result<Boolean>

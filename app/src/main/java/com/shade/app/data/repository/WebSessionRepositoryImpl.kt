@@ -54,10 +54,12 @@ class WebSessionRepositoryImpl @Inject constructor(
     }
 
     override suspend fun authorizeWebSession(
+        token: String,
         sessionId: String,
         payload: WebSessionAuthorizationPayload
     ): Result<Boolean> = runCatching {
         val response = service.authorizeSession(
+            token = if (token.startsWith("Bearer ")) token else "Bearer $token",
             sessionId = sessionId,
             request = AuthorizeWebSessionRequest(
                 ciphertext = payload.ciphertext,

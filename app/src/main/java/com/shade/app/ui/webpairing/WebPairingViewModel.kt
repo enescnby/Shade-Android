@@ -1,5 +1,6 @@
 package com.shade.app.ui.webpairing
 
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,8 +12,12 @@ import com.shade.app.data.remote.websocket.WebSyncSocketManager
 import com.shade.app.domain.model.WebSessionAuthorizationPayload
 import com.shade.app.domain.repository.WebSessionRepository
 import com.shade.app.domain.usecase.websession.SyncWebSessionUseCase
+import com.shade.app.R
 import com.shade.app.security.KeyVaultManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,12 +28,14 @@ sealed interface WebPairingUiState {
     data object Idle : WebPairingUiState
     data object Authorizing : WebPairingUiState
     data object Connecting : WebPairingUiState
+    data object Syncing : WebPairingUiState
     data object Connected : WebPairingUiState
     data class Error(val message: String) : WebPairingUiState
 }
 
 @HiltViewModel
 class WebPairingViewModel @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val repository: WebSessionRepository,
     private val crypto: WebPairingCryptoManager,
     private val keyVault: KeyVaultManager,
@@ -43,38 +50,74 @@ class WebPairingViewModel @Inject constructor(
 
     @Volatile private var syncFired: Boolean = false
 
+    private var authorizeJob: Job? = null
+    private var syncPipelineJob: Job? = null
+
     init {
         viewModelScope.launch {
             syncSocketManager.state.collect { s ->
-                _state.value = when (s) {
-                    WebSyncSocketManager.State.Connected -> WebPairingUiState.Connected
-                    WebSyncSocketManager.State.Connecting -> when (val cur = _state.value) {
+                val prev = _state.value
+                val next = when (s) {
+                    WebSyncSocketManager.State.Connected -> when (val cur = prev) {
+                        is WebPairingUiState.Error -> cur
+                        WebPairingUiState.Connected -> cur
+                        else -> WebPairingUiState.Syncing
+                    }
+                    WebSyncSocketManager.State.Connecting -> when (val cur = prev) {
                         is WebPairingUiState.Error -> cur
                         else -> WebPairingUiState.Connecting
                     }
                     WebSyncSocketManager.State.Closed ->
-                        if (_state.value is WebPairingUiState.Connected) WebPairingUiState.Idle
-                        else _state.value
-                    is WebSyncSocketManager.State.Failed ->
-                        if (_state.value is WebPairingUiState.Connected ||
-                            _state.value is WebPairingUiState.Connecting
-                        ) WebPairingUiState.Error(s.reason) else _state.value
-                    WebSyncSocketManager.State.Idle -> _state.value
-                }
-
-                if (s == WebSyncSocketManager.State.Connected && !syncFired) {
-                    syncFired = true
-                    viewModelScope.launch {
-                        syncWebSessionUseCase()
-                            .onFailure { e ->
-                                Log.e(TAG, "Sync failed", e)
-                                _state.value = WebPairingUiState.Error(
-                                    e.message ?: "Sync hatası"
+                        when (val cur = prev) {
+                            WebPairingUiState.Connected -> cur
+                            WebPairingUiState.Syncing ->
+                                WebPairingUiState.Error(
+                                    appContext.getString(R.string.pairing_sync_interrupted)
                                 )
+                            else -> cur
+                        }
+                    is WebSyncSocketManager.State.Failed ->
+                        when (prev) {
+                            WebPairingUiState.Connecting,
+                            WebPairingUiState.Syncing ->
+                                WebPairingUiState.Error(s.reason)
+
+                            else -> prev
+                        }
+                    WebSyncSocketManager.State.Idle -> prev
+                }
+                _state.value = next
+
+                if (s == WebSyncSocketManager.State.Connected &&
+                    !syncFired &&
+                    next == WebPairingUiState.Syncing
+                ) {
+                    syncFired = true
+                    syncPipelineJob?.cancel()
+                    syncPipelineJob = viewModelScope.launch {
+                        try {
+                            val result = try {
+                                syncWebSessionUseCase()
+                            } catch (e: CancellationException) {
+                                throw e
                             }
-                            .onSuccess { count ->
-                                Log.d(TAG, "Sync OK  total=$count messages")
+                            result.onFailure { e ->
+                                Log.e(TAG, "Sync failed", e)
+                                if (_state.value is WebPairingUiState.Syncing) {
+                                    _state.value = WebPairingUiState.Error(
+                                        e.message ?: "Sync hatası"
+                                    )
+                                }
+                            }.onSuccess { count ->
+                                Log.d(TAG, "Sync OK total=$count messages")
+                                if (_state.value is WebPairingUiState.Syncing) {
+                                    _state.value = WebPairingUiState.Connected
+                                    syncSocketManager.disconnect()
+                                }
                             }
+                        } catch (e: CancellationException) {
+                            throw e
+                        }
                     }
                 }
                 if (s is WebSyncSocketManager.State.Failed ||
@@ -87,9 +130,25 @@ class WebPairingViewModel @Inject constructor(
         }
     }
 
+    fun cancelPairingAttempt() {
+        if (_state.value !is WebPairingUiState.Authorizing &&
+            _state.value !is WebPairingUiState.Connecting &&
+            _state.value !is WebPairingUiState.Syncing
+        ) return
+
+        authorizeJob?.cancel()
+        syncPipelineJob?.cancel()
+        authorizeJob = null
+        syncPipelineJob = null
+        syncSocketManager.disconnect()
+        crypto.clearSession()
+        _state.value = WebPairingUiState.Idle
+    }
+
     fun onQrScanned(rawQr: String) {
         if (_state.value is WebPairingUiState.Authorizing ||
             _state.value is WebPairingUiState.Connecting ||
+            _state.value is WebPairingUiState.Syncing ||
             _state.value is WebPairingUiState.Connected
         ) return
 
@@ -103,44 +162,61 @@ class WebPairingViewModel @Inject constructor(
         }
         Log.d(TAG, "QR parsed: s=${qr.s.take(8)}…  k.len=${qr.k.length}")
 
-        viewModelScope.launch {
-            _state.value = WebPairingUiState.Authorizing
+        authorizeJob?.cancel()
+        authorizeJob = viewModelScope.launch {
+            try {
+                _state.value = WebPairingUiState.Authorizing
 
-            val bundle = runCatching { buildEncryptedBundle(qr.k) }.getOrElse { e ->
-                Log.e(TAG, "Encrypt error", e)
-                _state.value = WebPairingUiState.Error(e.message ?: "Şifreleme hatası")
-                return@launch
-            }
+                val bundle = runCatching { buildEncryptedBundle(qr.k) }.getOrElse { e ->
+                    Log.e(TAG, "Encrypt error", e)
+                    if (_state.value is WebPairingUiState.Authorizing) {
+                        _state.value = WebPairingUiState.Error(e.message ?: "Şifreleme hatası")
+                    }
+                    return@launch
+                }
 
-            Log.d(TAG, "Authorize request:")
-            Log.d(TAG, "  POST /auth/web/session/${qr.s}/authorize")
-            Log.d(TAG, "  web_x25519_pub (QR):  ${qr.k}  (len=${qr.k.length})")
-            Log.d(TAG, "  android_x25519_pub:   ${bundle.androidPublicKeyHex}  (len=${bundle.androidPublicKeyHex.length})")
-            Log.d(TAG, "  nonce:                ${bundle.nonceHex}  (len=${bundle.nonceHex.length})")
-            Log.d(TAG, "  ciphertext:           ${bundle.ciphertextHex}  (len=${bundle.ciphertextHex.length})")
-            Log.d(TAG, "  body JSON: {\"ciphertext\":\"${bundle.ciphertextHex}\",\"nonce\":\"${bundle.nonceHex}\",\"android_x25519_pub\":\"${bundle.androidPublicKeyHex}\"}")
+                if (_state.value != WebPairingUiState.Authorizing) return@launch
 
-            val authResult = repository.authorizeWebSession(
-                sessionId = qr.s,
-                payload = WebSessionAuthorizationPayload(
-                    ciphertext = bundle.ciphertextHex,
-                    nonce = bundle.nonceHex,
-                    androidX25519Pub = bundle.androidPublicKeyHex
+                Log.d(TAG, "Authorize request:")
+                Log.d(TAG, "  POST /auth/web/session/${qr.s}/authorize")
+                Log.d(TAG, "  web_x25519_pub (QR):  ${qr.k}  (len=${qr.k.length})")
+                Log.d(TAG, "  android_x25519_pub:   ${bundle.androidPublicKeyHex}  (len=${bundle.androidPublicKeyHex.length})")
+                Log.d(TAG, "  nonce:                ${bundle.nonceHex}  (len=${bundle.nonceHex.length})")
+                Log.d(TAG, "  ciphertext:           ${bundle.ciphertextHex}  (len=${bundle.ciphertextHex.length})")
+
+                val jwt = keyVault.getAccessToken() ?: ""
+                val authResult = repository.authorizeWebSession(
+                    token = jwt,
+                    sessionId = qr.s,
+                    payload = WebSessionAuthorizationPayload(
+                        ciphertext = bundle.ciphertextHex,
+                        nonce = bundle.nonceHex,
+                        androidX25519Pub = bundle.androidPublicKeyHex
+                    )
                 )
-            )
 
-            authResult.onFailure { e ->
-                Log.e(TAG, "Authorize error", e)
-                _state.value = WebPairingUiState.Error(e.message ?: "Yetkilendirilemedi")
-            }.onSuccess {
-                Log.d(TAG, "Authorize OK → opening sync WS")
-                _state.value = WebPairingUiState.Connecting
-                syncSocketManager.connect(qr.s)
+                authResult.onFailure { e ->
+                    Log.e(TAG, "Authorize error", e)
+                    if (_state.value is WebPairingUiState.Authorizing) {
+                        _state.value = WebPairingUiState.Error(e.message ?: "Yetkilendirilemedi")
+                    }
+                }.onSuccess {
+                    if (_state.value != WebPairingUiState.Authorizing) return@onSuccess
+                    Log.d(TAG, "Authorize OK → opening sync WS")
+                    _state.value = WebPairingUiState.Connecting
+                    syncSocketManager.connect(qr.s)
+                }
+            } catch (e: CancellationException) {
+                throw e
             }
         }
     }
 
     fun disconnect() {
+        authorizeJob?.cancel()
+        syncPipelineJob?.cancel()
+        authorizeJob = null
+        syncPipelineJob = null
         syncSocketManager.disconnect()
         crypto.clearSession()
         _state.value = WebPairingUiState.Idle
@@ -155,7 +231,6 @@ class WebPairingViewModel @Inject constructor(
     private suspend fun buildEncryptedBundle(webPubHex: String): WebPairingCryptoManager.HandshakeResult {
         val ed = keyVault.getEd25519PrivateKey() ?: error("ed25519_priv missing")
         val x = keyVault.getX25519PrivateKey() ?: error("x25519_priv missing")
-        val jwt = keyVault.getAccessToken() ?: error("jwt missing")
         val shadeId = keyVault.getShadeId() ?: error("shade_id missing")
         val userId = keyVault.getUserId() ?: error("user_id missing")
 
@@ -163,12 +238,11 @@ class WebPairingViewModel @Inject constructor(
             WebSessionPlaintext(
                 x25519Priv = x,
                 ed25519Priv = ed,
-                jwt = jwt,
                 shadeId = shadeId,
                 userId = userId
             )
         )
-        Log.d(TAG, "Plaintext JSON (will be encrypted): $plaintextJson  (utf8.len=${plaintextJson.toByteArray(Charsets.UTF_8).size})")
+        Log.d(TAG, "Plaintext JSON (will be encrypted): $plaintextJson")
         return crypto.startSession(plaintextJson.toByteArray(Charsets.UTF_8), webPubHex)
     }
 
@@ -257,7 +331,6 @@ class WebPairingViewModel @Inject constructor(
     private data class WebSessionPlaintext(
         @SerializedName("x25519_priv") val x25519Priv: String,
         @SerializedName("ed25519_priv") val ed25519Priv: String,
-        @SerializedName("jwt") val jwt: String,
         @SerializedName("shade_id") val shadeId: String,
         @SerializedName("user_id") val userId: String
     )

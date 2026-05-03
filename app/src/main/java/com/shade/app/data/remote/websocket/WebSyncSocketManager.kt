@@ -6,10 +6,7 @@ import com.shade.app.security.KeyVaultManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
@@ -18,15 +15,15 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
-import okio.ByteString.Companion.encodeUtf8
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * Browser ↔ Mobile sync WebSocket'i için yönetici.
  *
- * Endpoint: WS /api/v1/sync/:session_id?token=<jwt>&role=android
- * Mesaj akışı: Mobile → Server → Web (tek yönlü).
+ * Endpoint: WS `/sync/:session_id?token=<jwt>&role=android`
+ *
+ * Sync payload’ları **text** JSON olarak gönderilir (batch + sync_complete).
  *
  * Singleton; UI life-cycle'ından bağımsız yaşar. Authorize başarılı olduktan
  * sonra connect() çağrılır, kullanıcı manuel disconnect edene kadar veya
@@ -55,12 +52,6 @@ class WebSyncSocketManager @Inject constructor(
     private val _state = MutableStateFlow<State>(State.Idle)
     val state = _state.asStateFlow()
 
-    private val _events = MutableSharedFlow<ByteString>(
-        extraBufferCapacity = 32,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-    val events = _events.asSharedFlow()
-
     fun connect(sessionId: String) {
         if (currentSessionId == sessionId &&
             (_state.value == State.Connected || _state.value == State.Connecting)
@@ -86,9 +77,6 @@ class WebSyncSocketManager @Inject constructor(
         }
     }
 
-    fun sendBinary(bytes: ByteArray): Boolean =
-        socket?.send(ByteString.of(*bytes)) ?: false
-
     fun sendText(text: String): Boolean =
         socket?.send(text) ?: false
 
@@ -106,13 +94,11 @@ class WebSyncSocketManager @Inject constructor(
         }
 
         override fun onMessage(ws: WebSocket, bytes: ByteString) {
-            Log.d(TAG, "Sync WS bin recv: ${bytes.size}B")
-            _events.tryEmit(bytes)
+            Log.d(TAG, "Sync WS bin recv: ${bytes.size}B (ignored)")
         }
 
         override fun onMessage(ws: WebSocket, text: String) {
             Log.d(TAG, "Sync WS txt recv: ${text.take(200)}")
-            _events.tryEmit(text.encodeUtf8())
         }
 
         override fun onClosing(ws: WebSocket, code: Int, reason: String) {
@@ -124,6 +110,7 @@ class WebSyncSocketManager @Inject constructor(
             Log.w(TAG, "Sync WS closed:  code=$code reason=$reason")
             socket = null
             currentSessionId = null
+            if (_state.value == State.Idle) return
             _state.value = if (code == 1000) State.Closed else State.Failed(reason, code)
         }
 
@@ -134,6 +121,8 @@ class WebSyncSocketManager @Inject constructor(
                 t
             )
             socket = null
+            currentSessionId = null
+            if (_state.value == State.Idle) return
             _state.value = State.Failed(t.message ?: "Unknown")
         }
     }

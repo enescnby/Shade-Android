@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.shade.app.data.local.entities.MessageEntity
 import com.shade.app.data.local.entities.MessageStatus
 import com.shade.app.data.remote.api.UserService
+import com.shade.app.data.preferences.TranslationConsentRepository
 import com.shade.app.data.repository.TranslationRepository
 import com.shade.app.domain.repository.ChatRepository
 import com.shade.app.domain.repository.MessageRepository
@@ -62,6 +63,7 @@ class ChatViewModel @Inject constructor(
     private val keyVaultManager: KeyVaultManager,
     private val userService: UserService,
     private val translationRepository: TranslationRepository,
+    private val translationConsentRepository: TranslationConsentRepository,
     private val activeChatTracker: ActiveChatTracker,
     private val notificationHelper: NotificationHelper,
     savedStateHandle: SavedStateHandle
@@ -81,6 +83,13 @@ class ChatViewModel @Inject constructor(
         )
     )
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
+
+    val translationDisclaimerAccepted: StateFlow<Boolean> =
+        translationConsentRepository.disclaimerAccepted.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            false
+        )
 
     private var hasCalculatedInitialScroll = false
 
@@ -235,6 +244,12 @@ class ChatViewModel @Inject constructor(
             }
             .catch { e -> Log.e(TAG, "Arama hatası: ${e.message}") }
             .launchIn(viewModelScope)
+    }
+
+    fun acknowledgeTranslationDisclaimer() {
+        viewModelScope.launch {
+            translationConsentRepository.setDisclaimerAccepted(true)
+        }
     }
 
     fun translateMessage(messageId: String, content: String, targetLang: String) {

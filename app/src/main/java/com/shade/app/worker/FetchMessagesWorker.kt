@@ -39,7 +39,7 @@ class FetchMessagesWorker @AssistedInject constructor(
 
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val notification = NotificationCompat.Builder(applicationContext, "shade_messages")
-            .setSmallIcon(R.drawable.shade_logo)
+            .setSmallIcon(R.drawable.ic_stat_shade)
             .setContentTitle("Shade")
             .setContentText("Mesajlar alınıyor...")
             .setPriority(NotificationCompat.PRIORITY_LOW)

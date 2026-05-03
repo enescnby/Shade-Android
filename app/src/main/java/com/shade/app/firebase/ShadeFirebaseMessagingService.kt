@@ -5,8 +5,6 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.content.Context
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
@@ -14,7 +12,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
-import com.shade.app.data.remote.websocket.MessageListener
+import com.shade.app.R
 import com.shade.app.security.KeyVaultManager
 import com.shade.app.worker.FetchMessagesWorker
 import dagger.hilt.EntryPoint
@@ -25,7 +23,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlin.random.Random
 
 class ShadeFirebaseMessagingService : FirebaseMessagingService() {
@@ -68,10 +65,11 @@ class ShadeFirebaseMessagingService : FirebaseMessagingService() {
                     .setConstraints(constraints)
                     .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
                     .build()
+                // KEEP: rapid FCM must not cancel a running/queued fetch (REPLACE did that).
                 WorkManager.getInstance(applicationContext)
                     .enqueueUniqueWork(
                         "fetch_undelivered_messages",
-                        ExistingWorkPolicy.REPLACE,
+                        ExistingWorkPolicy.KEEP,
                         request
                     )
             }
@@ -98,7 +96,7 @@ class ShadeFirebaseMessagingService : FirebaseMessagingService() {
         val notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle(title)
             .setContentText(body)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_stat_shade)
             .setAutoCancel(true)
             .build()
 
