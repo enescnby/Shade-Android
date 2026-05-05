@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.GppGood
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -433,7 +434,11 @@ fun RegisterLayout(
     onAuthSuccess: () -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
+    var consentChecked by remember { mutableStateOf(false) }
+
     Column(modifier = Modifier.fillMaxWidth()) {
+
+        // ── Back arrow ────────────────────────────────────────────────────────
         IconButton(onClick = onBack, modifier = Modifier.padding(top = 8.dp)) {
             Icon(
                 Icons.AutoMirrored.Filled.ArrowBack,
@@ -445,63 +450,154 @@ fun RegisterLayout(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .padding(horizontal = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ── Title ─────────────────────────────────────────────────────────
             Text(
-                text = stringResource(R.string.register),
+                text = "Register",
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = Color.White,
+                textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(24.dp))
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // ── Subtitle ──────────────────────────────────────────────────────
             Text(
-                text = stringResource(R.string.register_notice),
-                textAlign = TextAlign.Center,
-                color = TextSecondary,
+                text = "When your account is created, special\nsecurity keys will be generated for you.",
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(horizontal = 16.dp)
+                color = TextSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 8.dp)
             )
 
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
-            Button(
-                onClick = {
-                    if (uiState is AuthUiState.Success) {
-                        onAuthSuccess()
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = SurfaceElevated),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text("I understand, Continue", color = TextPrimary)
-            }
-
+            // ── Security consent card ─────────────────────────────────────────
             if (uiState !is AuthUiState.Success) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color.White.copy(alpha = 0.05f),
+                    shape = RoundedCornerShape(18.dp),
+                    border = androidx.compose.foundation.BorderStroke(0.5.dp, OutlineMuted)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Shield icon
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = AccentPurple.copy(alpha = 0.12f),
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.GppGood,
+                                    contentDescription = null,
+                                    tint = AccentPurple,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(14.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Güvenlik Bildirimi",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "Hesabım oluşturulduğunda kendime özel " +
+                                "şifreleme anahtarları üretilecek. Bu " +
+                                "anahtarlar yalnızca bende saklanır; " +
+                                "kaybolmaları durumunda hesabıma bir " +
+                                "daha erişemem. Bunu anlıyor ve kabul " +
+                                "ediyorum.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary,
+                                lineHeight = 18.sp
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Checkbox
+                        Checkbox(
+                            checked = consentChecked,
+                            onCheckedChange = { consentChecked = it },
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = AccentPurple,
+                                uncheckedColor = OutlineMuted,
+                                checkmarkColor = Color.White
+                            )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // ── Register Safely button ────────────────────────────────────
                 Button(
                     onClick = onRegister,
+                    enabled = consentChecked && uiState !is AuthUiState.Loading,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp),
                     shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AccentPurple,
+                        disabledContainerColor = SurfaceContainer
+                    )
                 ) {
                     if (uiState is AuthUiState.Loading) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
                     } else {
                         Text(
-                            stringResource(R.string.register_safely),
+                            "Register Safely",
                             fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = if (consentChecked) Color.White else TextMuted
                         )
                     }
                 }
+
+                // ── Helper text (shown when checkbox not yet ticked) ──────────
+                Spacer(modifier = Modifier.height(8.dp))
+                AnimatedVisibility(!consentChecked) {
+                    Text(
+                        "Devam etmek için güvenlik bildirimini onaylayın",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextMuted,
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
 
+            // ── "I understand, Continue" after successful register ────────────
+            if (uiState is AuthUiState.Success) {
+                Button(
+                    onClick = { onAuthSuccess() },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = SurfaceElevated),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Anladım, Devam Et", color = TextPrimary, fontWeight = FontWeight.Medium)
+                }
+            }
+
+            // ── State feedback ────────────────────────────────────────────────
             when (uiState) {
                 is AuthUiState.Success -> {
+                    Spacer(modifier = Modifier.height(16.dp))
                     SuccessSection(uiState, snackbarHostState)
                 }
                 is AuthUiState.Error -> {
@@ -521,6 +617,8 @@ fun RegisterLayout(
                 }
                 else -> {}
             }
+
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }

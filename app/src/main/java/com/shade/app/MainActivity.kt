@@ -6,44 +6,51 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
 import com.google.firebase.messaging.FirebaseMessaging
+import com.shade.app.data.repository.AppPrefsRepository
 import com.shade.app.security.KeyVaultManager
-import kotlinx.coroutines.launch
 import com.shade.app.ui.audit.SecurityAuditScreen
 import com.shade.app.ui.auth.AuthScreen
 import com.shade.app.ui.chat.ChatScreen
 import com.shade.app.ui.contacts.ContactsScreen
 import com.shade.app.ui.home.HomeScreen
+import com.shade.app.ui.lock.LockScreen
+import com.shade.app.ui.myprofile.MyProfileScreen
+import com.shade.app.ui.qr.QrScannerScreen
 import com.shade.app.ui.navigation.Screen
+import com.shade.app.ui.qr.QrScreen
 import com.shade.app.ui.theme.ShadeTheme
 import com.shade.app.ui.user.ProfileScreen
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 private const val TAG = "SHADE_NAV"
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
-    @Inject
-    lateinit var keyVaultManager: KeyVaultManager
+    @Inject lateinit var keyVaultManager: KeyVaultManager
+    @Inject lateinit var appPrefsRepository: AppPrefsRepository
 
     private val requestNotificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
@@ -52,41 +59,73 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Ekran görüntüsü ve ekran kaydını engelle (gizlilik uygulaması için zorunlu)
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         Log.d(TAG, "MainActivity onCreate")
-
         askNotificationPermission()
 
-        val pendingChatId = intent?.getStringExtra("chatId")
+        val pendingChatId   = intent?.getStringExtra("chatId")
         val pendingChatName = intent?.getStringExtra("chatName")
 
         setContent {
-            ShadeTheme {
+            // ── Theme state ────────────────────────────────────────────────────
+            val isDark by appPrefsRepository.isDarkTheme.collectAsState(initial = true)
+
+            // ── App-lock state ─────────────────────────────────────────────────
+            var isLocked by remember { mutableStateOf(false) }
+            var lockError by remember { mutableStateOf(false) }
+
+            LaunchedEffect(Unit) {
+                val enabled = appPrefsRepository.isAppLockEnabled.first()
+                val hasPin  = appPrefsRepository.hasPin()
+                if (enabled && hasPin) isLocked = true
+            }
+
+            ShadeTheme(darkTheme = isDark) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    AppNavigation(
-                        pendingChatId = pendingChatId,
-                        pendingChatName = pendingChatName
-                    )
+                    if (isLocked) {
+                        LockScreen(
+                            pinError = lockError,
+                            onPinComplete = { pin ->
+                                lifecycleScope.launch {
+                                    if (appPrefsRepository.verifyPin(pin)) {
+                                        isLocked  = false
+                                        lockError = false
+                                    } else {
+                                        lockError = true
+                                    }
+                                }
+                            },
+                            onBiometricRequest = {
+                                showBiometric(
+                                    onSuccess = { isLocked = false; lockError = false },
+                                    onError   = { lockError = false }
+                                )
+                            }
+                        )
+                    } else {
+                        AppNavigation(
+                            pendingChatId   = pendingChatId,
+                            pendingChatName = pendingChatName,
+                            isDarkTheme     = isDark,
+                            onToggleTheme   = {
+                                lifecycleScope.launch {
+                                    appPrefsRepository.setDarkTheme(!isDark)
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
 
-        FirebaseMessaging.getInstance().token
-            .addOnCompleteListener { task ->
-                if (task.isSuccessful) {
-                    val token = task.result
-                    Log.d("FCM", "Token: $token")
-                    lifecycleScope.launch {
-                        keyVaultManager.saveFcmToken(token)
-                    }
-                } else {
-                    Log.e("FCM", "Token alınamadı", task.exception)
-                }
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                lifecycleScope.launch { keyVaultManager.saveFcmToken(task.result) }
             }
+        }
     }
 
     override fun onDestroy() {
@@ -96,22 +135,50 @@ class MainActivity : ComponentActivity() {
 
     private fun askNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) != PackageManager.PERMISSION_GRANTED
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
             ) {
                 requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
     }
+
+    private fun showBiometric(onSuccess: () -> Unit, onError: (String) -> Unit) {
+        val mgr = BiometricManager.from(this)
+        if (mgr.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK)
+            != BiometricManager.BIOMETRIC_SUCCESS
+        ) {
+            onError("Biyometrik kullanılamıyor")
+            return
+        }
+        val prompt = BiometricPrompt(
+            this,
+            ContextCompat.getMainExecutor(this),
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    onSuccess()
+                }
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    onError(errString.toString())
+                }
+                override fun onAuthenticationFailed() {}
+            }
+        )
+        val info = BiometricPrompt.PromptInfo.Builder()
+            .setTitle("Shade'i Aç")
+            .setSubtitle("Kimliğinizi doğrulayın")
+            .setNegativeButtonText("PIN Kullan")
+            .build()
+        prompt.authenticate(info)
+    }
 }
 
 @Composable
 fun AppNavigation(
-    pendingChatId: String? = null,
-    pendingChatName: String? = null
+    pendingChatId: String?   = null,
+    pendingChatName: String? = null,
+    isDarkTheme: Boolean     = true,
+    onToggleTheme: () -> Unit = {}
 ) {
     val navController = rememberNavController()
 
@@ -124,10 +191,8 @@ fun AppNavigation(
         }
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = Screen.Auth.route
-    ) {
+    NavHost(navController = navController, startDestination = Screen.Auth.route) {
+
         composable(Screen.Auth.route) {
             Log.d(TAG, "→ Auth ekranı")
             AuthScreen(
@@ -145,35 +210,38 @@ fun AppNavigation(
             Log.d(TAG, "→ Home ekranı")
             HomeScreen(
                 onChatClick = { chatId, chatName ->
-                    Log.d(TAG, "Home → Chat: chatId=$chatId, chatName=$chatName")
                     navController.navigate(Screen.Chat.createRoute(chatId, chatName))
                 },
                 onNavigateToContacts = {
-                    Log.d(TAG, "Home → Contacts ekranına geçiliyor")
                     navController.navigate(Screen.Contacts.route)
                 },
                 onLogout = {
-                    Log.d(TAG, "Çıkış yapıldı → Auth ekranına dönülüyor")
                     navController.navigate(Screen.Auth.route) {
                         popUpTo(0) { inclusive = true }
                     }
                 },
                 onSecurityAuditClick = {
-                    Log.d(TAG, "Home → Güvenlik Günlüğü")
                     navController.navigate(Screen.SecurityAudit.route)
-                }
+                },
+                onQrClick = {
+                    navController.navigate(Screen.Qr.route)
+                },
+                onMyProfileClick = {
+                    navController.navigate(Screen.MyProfile.route)
+                },
+                onQrScannerClick = {
+                    navController.navigate(Screen.QrScanner.route)
+                },
+                isDarkTheme   = isDarkTheme,
+                onToggleTheme = onToggleTheme
             )
         }
 
         composable(Screen.Contacts.route) {
             Log.d(TAG, "→ Contacts ekranı")
             ContactsScreen(
-                onBackClick = {
-                    Log.d(TAG, "Contacts → geri (Home)")
-                    navController.popBackStack()
-                },
+                onBackClick = { navController.popBackStack() },
                 onContactClick = { shadeId, displayName ->
-                    Log.d(TAG, "Contacts → Chat: shadeId=$shadeId, name=$displayName")
                     navController.navigate(Screen.Chat.createRoute(shadeId, displayName))
                 }
             )
@@ -182,20 +250,14 @@ fun AppNavigation(
         composable(
             route = Screen.Chat.route,
             arguments = listOf(
-                navArgument("chatId") { type = NavType.StringType },
+                navArgument("chatId")   { type = NavType.StringType },
                 navArgument("chatName") { type = NavType.StringType }
             )
-        ) { backStackEntry ->
-            val chatId = backStackEntry.arguments?.getString("chatId")
-            val chatName = backStackEntry.arguments?.getString("chatName")
-            Log.d(TAG, "→ Chat ekranı: chatId=$chatId, chatName=$chatName")
+        ) {
+            Log.d(TAG, "→ Chat ekranı")
             ChatScreen(
-                onBackClick = {
-                    Log.d(TAG, "Chat → geri")
-                    navController.popBackStack()
-                },
+                onBackClick    = { navController.popBackStack() },
                 onProfileClick = { shadeId ->
-                    Log.d(TAG, "Chat → Profile: shadeId=$shadeId")
                     navController.navigate(Screen.Profile.createRoute(shadeId))
                 }
             )
@@ -204,25 +266,29 @@ fun AppNavigation(
         composable(
             route = Screen.Profile.route,
             arguments = listOf(navArgument("shadeId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val shadeId = backStackEntry.arguments?.getString("shadeId")
-            Log.d(TAG, "→ Profile ekranı: shadeId=$shadeId")
-            ProfileScreen(
-                onBackClick = {
-                    Log.d(TAG, "Profile → geri")
-                    navController.popBackStack()
-                }
-            )
+        ) {
+            Log.d(TAG, "→ Profile ekranı")
+            ProfileScreen(onBackClick = { navController.popBackStack() })
         }
 
         composable(Screen.SecurityAudit.route) {
             Log.d(TAG, "→ SecurityAudit ekranı")
-            SecurityAuditScreen(
-                onBackClick = {
-                    Log.d(TAG, "SecurityAudit → geri")
-                    navController.popBackStack()
-                }
-            )
+            SecurityAuditScreen(onBackClick = { navController.popBackStack() })
+        }
+
+        composable(Screen.Qr.route) {
+            Log.d(TAG, "→ QR ekranı")
+            QrScreen(onBackClick = { navController.popBackStack() })
+        }
+
+        composable(Screen.MyProfile.route) {
+            Log.d(TAG, "→ MyProfile ekranı")
+            MyProfileScreen(onBackClick = { navController.popBackStack() })
+        }
+
+        composable(Screen.QrScanner.route) {
+            Log.d(TAG, "→ QrScanner ekranı")
+            QrScannerScreen(onBackClick = { navController.popBackStack() })
         }
     }
 }

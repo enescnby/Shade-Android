@@ -13,7 +13,7 @@ import com.shade.app.data.local.entities.MessageEntity
 
 @Database(
     entities = [MessageEntity::class, ContactEntity::class, ChatEntity::class],
-    version = 2,
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(RoomConverters::class)

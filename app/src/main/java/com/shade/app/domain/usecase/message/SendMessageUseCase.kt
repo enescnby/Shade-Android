@@ -1,10 +1,12 @@
 package com.shade.app.domain.usecase.message
 
 import android.util.Log
+import com.google.gson.Gson
 import com.google.protobuf.ByteString
 import com.shade.app.crypto.MessageCryptoManager
 import com.shade.app.data.local.entities.MessageEntity
 import com.shade.app.data.local.entities.MessageStatus
+import com.shade.app.domain.model.ReplyContent
 import com.shade.app.domain.repository.ChatRepository
 import com.shade.app.domain.repository.ContactRepository
 import com.shade.app.domain.repository.MessageRepository
@@ -23,14 +25,29 @@ class SendMessageUseCase @Inject constructor(
     private val cryptoManager: MessageCryptoManager,
     private val keyVaultManager: KeyVaultManager
 ) {
-    suspend operator fun invoke(receiverShadeId: String, content: String) {
+    private val gson = Gson()
+
+    suspend operator fun invoke(
+        receiverShadeId: String,
+        content: String,
+        replyToId: String? = null,
+        replyToContent: String? = null
+    ) {
         val contact = contactRepository.getOrFetchContact(receiverShadeId) ?: return
         val myPrivateKeyHex = keyVaultManager.getX25519PrivateKey() ?: return
         val myShadeId = keyVaultManager.getShadeId() ?: return
 
         val sharedSecret = cryptoManager.generateSharedSecret(myPrivateKeyHex, contact.encryptionPublicKey)
         val derivedKey = cryptoManager.deriveConversationKey(sharedSecret, 1)
-        val (cipherHex, nonceHex) = cryptoManager.encryptMessage(content, derivedKey)
+
+        // If replying, wrap in JSON so the receiver can parse the reply reference
+        val wireContent = if (replyToId != null) {
+            gson.toJson(ReplyContent(t = content, rId = replyToId, rC = replyToContent?.take(80)))
+        } else {
+            content
+        }
+
+        val (cipherHex, nonceHex) = cryptoManager.encryptMessage(wireContent, derivedKey)
 
         val msgId = UUID.randomUUID().toString()
         val ts = System.currentTimeMillis()
@@ -54,10 +71,12 @@ class SendMessageUseCase @Inject constructor(
             messageId = msgId,
             senderId = myShadeId,
             receiverId = contact.shadeId,
-            content = content,
+            content = content,            // store actual text, not wire JSON
             timestamp = ts,
             messageType = com.shade.app.data.local.entities.MessageType.TEXT,
-            status = if (isSent) MessageStatus.SENT else MessageStatus.FAILED
+            status = if (isSent) MessageStatus.SENT else MessageStatus.FAILED,
+            replyToId = replyToId,
+            replyToContent = replyToContent?.take(80)
         )
 
         messageRepository.insertMessage(entity)

@@ -5,6 +5,8 @@ import com.shade.app.data.remote.dto.PendingReceiptsResponse
 import com.shade.app.data.remote.dto.UndeliveredMessageResponse
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.Field
+import retrofit2.http.FormUrlEncoded
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
@@ -25,4 +27,12 @@ interface MessageService {
     suspend fun getPendingReceipts(
         @Header("Authorization") token: String
     ): Response<PendingReceiptsResponse>
+
+    /** Web oturum QR token'ını backend'e gönderir, tarayıcı oturumu bağlanır */
+    @FormUrlEncoded
+    @POST("web/link")
+    suspend fun linkWebSession(
+        @Header("Authorization") token: String,
+        @Field("session_token") sessionToken: String
+    ): Response<Unit>
 }

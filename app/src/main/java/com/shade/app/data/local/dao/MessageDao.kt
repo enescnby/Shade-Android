@@ -34,4 +34,23 @@ interface MessageDao{
 
     @Delete
     suspend fun deleteMessage(message: MessageEntity)
+
+    @Query("UPDATE messages SET isDeleted = 1 WHERE messageId = :messageId")
+    suspend fun markAsDeleted(messageId: String)
+
+    @Query("UPDATE messages SET content = :content, isEdited = 1 WHERE messageId = :messageId")
+    suspend fun updateContent(messageId: String, content: String)
+
+    @Query("SELECT COUNT(*) FROM messages WHERE (senderId = :chatId OR receiverId = :chatId) AND messageType = 'IMAGE' AND isDeleted = 0")
+    suspend fun countMediaMessages(chatId: String): Int
+
+    /** Deletes non-deleted messages older than [cutoffMs] for the given chat.
+     *  Returns the number of rows deleted. */
+    @Query("""
+        DELETE FROM messages
+        WHERE (senderId = :chatId OR receiverId = :chatId)
+          AND timestamp < :cutoffMs
+          AND isDeleted = 0
+    """)
+    suspend fun deleteMessagesOlderThan(chatId: String, cutoffMs: Long): Int
 }

@@ -101,6 +101,9 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation("androidx.work:work-runtime-ktx:2.10.1")
+    implementation("androidx.biometric:biometric:1.1.0")
+    implementation("com.google.zxing:core:3.5.3")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0") { isTransitive = false }
 
     implementation(libs.androidx.compose.material.icons.extended)
 

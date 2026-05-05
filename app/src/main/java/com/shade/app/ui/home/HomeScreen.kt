@@ -7,10 +7,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,6 +42,11 @@ fun HomeScreen(
     onNavigateToContacts: () -> Unit,
     onLogout: () -> Unit = {},
     onSecurityAuditClick: () -> Unit = {},
+    onQrClick: () -> Unit = {},
+    onMyProfileClick: () -> Unit = {},
+    onQrScannerClick: () -> Unit = {},
+    isDarkTheme: Boolean = true,
+    onToggleTheme: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -52,29 +64,140 @@ fun HomeScreen(
         onDispose { Log.d(TAG, "HomeScreen kapandı") }
     }
 
+    // ── Dropdown menü durumu ──────────────────────────────────────────────────────
+    var showMenu by remember { mutableStateOf(false) }
+
     Scaffold(
         containerColor = RichBlack,
         topBar = {
             TopAppBar(
-                title = { Text("Shade") },
+                title = {
+                    Text(
+                        "Shade",
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = SurfaceDark
+                ),
                 actions = {
+                    // Kişiler — tek kalıcı ikon
                     IconButton(onClick = {
                         Log.d(TAG, "Kişiler butonuna tıklandı")
                         onNavigateToContacts()
                     }) {
-                        Icon(Icons.Default.People, contentDescription = "Kişiler")
+                        Icon(
+                            Icons.Default.People,
+                            contentDescription = "Kişiler",
+                            tint = TextPrimary
+                        )
                     }
-                    IconButton(onClick = {
-                        Log.d(TAG, "Güvenlik Günlüğü butonuna tıklandı")
-                        onSecurityAuditClick()
-                    }) {
-                        Icon(Icons.Default.Security, contentDescription = "Hesap Etkinliği")
-                    }
-                    IconButton(onClick = {
-                        Log.d(TAG, "Çıkış butonuna tıklandı")
-                        viewModel.logout()
-                    }) {
-                        Icon(Icons.Default.ExitToApp, contentDescription = "Çıkış Yap")
+
+                    // ⋮ Üç nokta — geri kalan her şey buradan
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(
+                                Icons.Default.MoreVert,
+                                contentDescription = "Menü",
+                                tint = TextPrimary
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false },
+                            modifier = Modifier.background(SurfaceElevated)
+                        ) {
+                            // Profilim
+                            DropdownMenuItem(
+                                text = { Text("Profilim", color = TextPrimary) },
+                                leadingIcon = {
+                                    Icon(Icons.Default.AccountCircle, contentDescription = null, tint = AccentPurple)
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    Log.d(TAG, "Profilim tıklandı")
+                                    onMyProfileClick()
+                                }
+                            )
+
+                            // QR Kodum (göster)
+                            DropdownMenuItem(
+                                text = { Text("QR Kodum", color = TextPrimary) },
+                                leadingIcon = {
+                                    Icon(Icons.Default.QrCode, contentDescription = null, tint = AccentPurple)
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    Log.d(TAG, "QR kod tıklandı")
+                                    onQrClick()
+                                }
+                            )
+
+                            // Web Bağlantısı (QR tara)
+                            DropdownMenuItem(
+                                text = { Text("Web'e Bağlan", color = TextPrimary) },
+                                leadingIcon = {
+                                    Icon(Icons.Default.QrCodeScanner, contentDescription = null, tint = AccentPurple)
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    Log.d(TAG, "Web bağlantısı tıklandı")
+                                    onQrScannerClick()
+                                }
+                            )
+
+                            // Karanlık / Aydınlık Mod
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        if (isDarkTheme) "Aydınlık Mod" else "Karanlık Mod",
+                                        color = TextPrimary
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                        contentDescription = null,
+                                        tint = AccentPurple
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    Log.d(TAG, "Tema değiştirildi")
+                                    onToggleTheme()
+                                }
+                            )
+
+                            // Hesap Etkinliği
+                            DropdownMenuItem(
+                                text = { Text("Hesap Etkinliği", color = TextPrimary) },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Security, contentDescription = null, tint = AccentPurple)
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    Log.d(TAG, "Güvenlik Günlüğü tıklandı")
+                                    onSecurityAuditClick()
+                                }
+                            )
+
+                            HorizontalDivider(color = OutlineMuted)
+
+                            // Çıkış Yap
+                            DropdownMenuItem(
+                                text = { Text("Çıkış Yap", color = Color(0xFFFF5252)) },
+                                leadingIcon = {
+                                    Icon(Icons.Default.ExitToApp, contentDescription = null, tint = Color(0xFFFF5252))
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    Log.d(TAG, "Çıkış tıklandı")
+                                    viewModel.logout()
+                                }
+                            )
+                        }
                     }
                 }
             )

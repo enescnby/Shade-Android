@@ -7,6 +7,7 @@ import com.shade.app.crypto.MessageCryptoManager
 import com.shade.app.data.local.entities.MessageEntity
 import com.shade.app.data.local.entities.MessageStatus
 import com.shade.app.domain.model.ImageMessageContent
+import com.shade.app.domain.model.ReplyContent
 import com.shade.app.domain.repository.ChatRepository
 import com.shade.app.domain.repository.ContactRepository
 import com.shade.app.domain.repository.MessageRepository
@@ -52,6 +53,20 @@ class ReceiveMessageUseCase @Inject constructor(
                 "Decryption Error"
             }
 
+            // DELETE: content = target message ID
+            if (payload.type == MessageType.DELETE) {
+                messageRepository.markAsDeleted(decryptedText)
+                Log.d("ReceiveMessage", "Mesaj silindi: $decryptedText")
+                return
+            }
+
+            // EDIT: message_id = edited message, content = new text
+            if (payload.type == MessageType.EDIT) {
+                messageRepository.updateMessageContent(payload.messageId, decryptedText)
+                Log.d("ReceiveMessage", "Mesaj duzenlendi: ${payload.messageId}")
+                return
+            }
+
             val entity = when (payload.type) {
                 MessageType.IMAGE -> {
                     var thumbnailPath: String? = null
@@ -76,21 +91,29 @@ class ReceiveMessageUseCase @Inject constructor(
                     )
                 }
                 else -> {
+                    // Try to parse as a reply-wrapped JSON; fall back to plain text
+                    val replyContent: ReplyContent? = try {
+                        val parsed = gson.fromJson(decryptedText, ReplyContent::class.java)
+                        if (parsed?.t != null) parsed else null
+                    } catch (_: Exception) { null }
+
                     MessageEntity(
                         messageId = payload.messageId,
                         senderId = contact.shadeId,
                         receiverId = myShadeId,
-                        content = decryptedText,
+                        content = replyContent?.t ?: decryptedText,
                         timestamp = payload.timestamp,
                         status = MessageStatus.DELIVERED,
-                        messageType = com.shade.app.data.local.entities.MessageType.TEXT
+                        messageType = com.shade.app.data.local.entities.MessageType.TEXT,
+                        replyToId = replyContent?.rId,
+                        replyToContent = replyContent?.rC
                     )
                 }
             }
 
             messageRepository.insertMessage(entity)
 
-            val lastMessageText = if (payload.type == MessageType.IMAGE) "\uD83D\uDCF7 Fotoğraf" else decryptedText
+            val lastMessageText = if (payload.type == MessageType.IMAGE) "📷 Fotograf" else entity.content
             if (activeChatTracker.activeShadeId == contact.shadeId) {
                 chatRepository.updateLastMessage(contact.shadeId, lastMessageText, payload.timestamp)
             } else {
@@ -103,7 +126,7 @@ class ReceiveMessageUseCase @Inject constructor(
 
             if (activeChatTracker.activeShadeId != contact.shadeId) {
                 val displayName = contact.savedName ?: contact.shadeId
-                val notifText = if (payload.type == MessageType.IMAGE) "\uD83D\uDCF7 Fotoğraf" else decryptedText
+                val notifText = if (payload.type == MessageType.IMAGE) "📷 Fotograf" else entity.content
                 notificationHelper.showMessageNotification(displayName, notifText, contact.shadeId)
             }
         } catch (e: Exception) {

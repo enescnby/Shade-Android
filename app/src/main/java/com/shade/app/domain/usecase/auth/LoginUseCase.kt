@@ -52,6 +52,7 @@ class LoginUseCase @Inject constructor(
                 finalResult
             }
         } catch (e: Exception) {
+            android.util.Log.e("LoginUseCase", "Login failed: ${e.javaClass.simpleName}: ${e.message}", e)
             Result.failure(e)
         }
     }

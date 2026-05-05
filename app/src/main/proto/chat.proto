@@ -8,6 +8,8 @@ option java_package = "com.shade.app.proto";
 enum MessageType {
   TEXT = 0;
   IMAGE = 1;
+  DELETE = 2;
+  EDIT = 3;
 }
 
 enum ReceiptStatus {
