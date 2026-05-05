@@ -67,4 +67,14 @@
     <string name="translation_disclaimer_body">Mesajı çevirmek için metin, harici çeviri hizmetlerine (üçüncül hizmet sağlayıcılar) gönderilir. Bunu kabul ediyorsanız devam edin.</string>
     <string name="translation_disclaimer_continue">Devam et</string>
     <string name="translation_disclaimer_cancel">Vazgeç</string>
+
+    <!-- Hesap kurtarma -->
+    <string name="recover_account">Hesabı Kurtar</string>
+    <string name="recovery_title">Hesabını Geri Yükle</string>
+    <string name="recovery_description">Hesabına erişimi geri kazanmak için Shade Kimliğini ve 12 kelimelik kurtarma ifadeni gir.</string>
+    <string name="recover_button">Erişimi Geri Yükle</string>
+
+    <!-- Bildirim stringleri -->
+    <string name="notification_more_messages">+%d daha fazla mesaj</string>
+    <string name="notification_summary">%1$d sohbetten %2$d mesaj</string>
 </resources>

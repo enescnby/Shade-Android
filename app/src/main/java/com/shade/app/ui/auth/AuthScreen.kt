@@ -43,7 +43,7 @@ import com.shade.app.ui.theme.*
 import kotlinx.coroutines.launch
 
 enum class AuthStep {
-    WELCOME, LOGIN, REGISTER
+    WELCOME, LOGIN, REGISTER, RECOVER
 }
 
 @Composable
@@ -155,6 +155,12 @@ fun AuthScreenContent(
                             snackbarHostState = snackbarHostState,
                             onAuthSuccess = onAuthSuccess
                         )
+                        AuthStep.RECOVER -> RecoveryLayout(
+                            uiState = uiState,
+                            onRecover = onLogin,
+                            onBack = { currentStep = AuthStep.WELCOME },
+                            onAuthSuccess = onAuthSuccess
+                        )
                     }
                 }
             }
@@ -261,6 +267,17 @@ fun WelcomeLayout(onNavigate: (AuthStep) -> Unit) {
                     stringResource(R.string.register),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
+                )
+            }
+
+            TextButton(
+                onClick = { onNavigate(AuthStep.RECOVER) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    stringResource(R.string.recover_account),
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -661,6 +678,145 @@ fun SuccessSection(state: AuthUiState.Success, snackbarHostState: SnackbarHostSt
                 shape = RoundedCornerShape(14.dp)
             ) {
                 Text(stringResource(R.string.copy_mnemonic), color = Color.White, fontWeight = FontWeight.Medium)
+            }
+        }
+    }
+}
+
+@Composable
+fun RecoveryLayout(
+    uiState: AuthUiState,
+    onRecover: (String, List<String>) -> Unit,
+    onBack: () -> Unit,
+    onAuthSuccess: () -> Unit
+) {
+    var shadeIdInput by remember { mutableStateOf("") }
+    var mnemonicInput by remember { mutableStateOf("") }
+
+    LaunchedEffect(uiState) {
+        if (uiState is AuthUiState.Success && uiState.mnemonic.isEmpty()) {
+            onAuthSuccess()
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        IconButton(onClick = onBack, modifier = Modifier.padding(top = 8.dp)) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back",
+                tint = MaterialTheme.colorScheme.onBackground
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.shade_logo),
+                contentDescription = null,
+                modifier = Modifier.size(80.dp)
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+            Text(
+                text = stringResource(R.string.recovery_title),
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.recovery_description),
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(28.dp))
+
+            OutlinedTextField(
+                value = shadeIdInput,
+                onValueChange = { shadeIdInput = it },
+                label = { Text(stringResource(R.string.shade_id)) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = AccentPurple,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    focusedLabelColor = AccentPurple,
+                    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    cursorColor = AccentPurple
+                )
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            OutlinedTextField(
+                value = mnemonicInput,
+                onValueChange = { mnemonicInput = it },
+                label = { Text(stringResource(R.string.mnemonic_label)) },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text(stringResource(R.string.mnemonic_placeholder), color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                shape = RoundedCornerShape(14.dp),
+                minLines = 2,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = AccentPurple,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    focusedLabelColor = AccentPurple,
+                    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    cursorColor = AccentPurple
+                )
+            )
+            Spacer(modifier = Modifier.height(40.dp))
+
+            Button(
+                onClick = {
+                    val mnemonicList = mnemonicInput.trim().split("\\s+".toRegex())
+                    onRecover(shadeIdInput, mnemonicList)
+                },
+                enabled = shadeIdInput.isNotBlank() && mnemonicInput.trim().split("\\s+".toRegex()).size == 12,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AccentPurple)
+            ) {
+                if (uiState is AuthUiState.Loading) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
+                } else {
+                    Text(
+                        stringResource(R.string.recover_button),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            if (uiState is AuthUiState.Error) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Surface(
+                    color = ErrorRed.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        uiState.message.asString(),
+                        color = ErrorRed,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(12.dp),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
             }
         }
     }

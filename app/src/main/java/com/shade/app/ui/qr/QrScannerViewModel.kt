@@ -35,28 +35,34 @@ class QrScannerViewModel @Inject constructor(
 
     /**
      * QR içeriğini işle.
-     * Format: "shade-web:<sessionId>:<webPublicKeyHex>"
-     * Örnek:  "shade-web:abc123:04af92..."
+     * Format: "shade://web-auth?s=<sessionId>&k=<webPublicKeyHex>"
+     * Örnek:  "shade://web-auth?s=abc123&k=04af92..."
      */
     fun processScannedQr(content: String) {
         Log.d("QrScanner", "Taranan QR: $content")
 
-        if (!content.startsWith("shade-web:")) {
+        if (!content.startsWith("shade://web-auth")) {
             _uiState.value = QrScannerUiState.Error(
                 "Geçersiz QR kodu.\nBu bir Shade Web QR'ı değil."
             )
             return
         }
 
-        val payload = content.removePrefix("shade-web:").trim()
-        val colonIdx = payload.indexOf(':')
-        if (colonIdx < 0) {
+        // Parse query params: ?s=<sessionId>&k=<pubKeyHex>
+        val queryStart = content.indexOf('?')
+        if (queryStart < 0) {
             _uiState.value = QrScannerUiState.Error("QR kodu eksik bilgi içeriyor.")
             return
         }
+        val queryParts = content.substring(queryStart + 1)
+            .split('&')
+            .associate { part ->
+                val eq = part.indexOf('=')
+                if (eq < 0) part to "" else part.substring(0, eq) to part.substring(eq + 1)
+            }
 
-        val sessionId      = payload.substring(0, colonIdx)
-        val webPublicKeyHex = payload.substring(colonIdx + 1)
+        val sessionId       = queryParts["s"].orEmpty()
+        val webPublicKeyHex = queryParts["k"].orEmpty()
 
         if (sessionId.isBlank() || webPublicKeyHex.isBlank()) {
             _uiState.value = QrScannerUiState.Error("QR kodu boş bir oturum içeriyor.")

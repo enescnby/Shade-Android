@@ -76,7 +76,9 @@ class NotificationHelper @Inject constructor(
         }
 
         if (messages.size > 7) {
-            inboxStyle.setSummaryText("+${messages.size - 7} daha fazla mesaj")
+            inboxStyle.setSummaryText(
+                context.getString(R.string.notification_more_messages, messages.size - 7)
+            )
         }
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
@@ -98,7 +100,9 @@ class NotificationHelper @Inject constructor(
 
             val summaryNotification = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setContentTitle("Shade")
-                .setContentText("${messageByUser.size} sohbetten $totalMessages mesaj")
+                .setContentText(
+                    context.getString(R.string.notification_summary, messageByUser.size, totalMessages)
+                )
                 .setSmallIcon(R.drawable.ic_stat_shade)
                 .setGroup(GROUP_KEY)
                 .setGroupSummary(true)
