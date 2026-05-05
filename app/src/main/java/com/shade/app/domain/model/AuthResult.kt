@@ -5,5 +5,6 @@ data class AuthResult(
     val userId: String?,
     val accessToken: String? = null,
     val idPrivateKey: String? = null,
-    val encPrivateKey: String? = null
+    val encPrivateKey: String? = null,
+    val deviceId: String? = null
 )

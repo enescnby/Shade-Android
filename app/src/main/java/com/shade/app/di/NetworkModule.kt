@@ -8,6 +8,7 @@ import com.shade.app.data.remote.api.MediaService
 import com.shade.app.data.remote.api.MessageService
 import com.shade.app.data.remote.api.TranslationService
 import com.shade.app.data.remote.api.UserService
+import com.shade.app.data.remote.api.WebSessionService
 import com.shade.app.data.remote.websocket.ShadeWebSocketManager
 import com.shade.app.data.remote.websocket.ShadeWebSocketManagerImpl
 import com.shade.app.util.ConnectivityObserver
@@ -97,6 +98,12 @@ object NetworkModule {
     @Singleton
     fun provideMessageService(retrofit: Retrofit): MessageService {
         return retrofit.create(MessageService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideWebSessionService(retrofit: Retrofit): WebSessionService {
+        return retrofit.create(WebSessionService::class.java)
     }
 
     @Provides

@@ -42,7 +42,7 @@ class AuthRepositoryImpl @Inject constructor(
             )
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
-                Result.success(AuthResult(body.shadeId, body.userId, null))
+                Result.success(AuthResult(body.shadeId, body.userId, null, deviceId = body.deviceID))
             } else {
                 Result.failure(Exception("Registration failed: ${response.message()}"))
             }
@@ -77,7 +77,7 @@ class AuthRepositoryImpl @Inject constructor(
             )
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
-                Result.success(AuthResult(body.shadeId, body.userId, body.accessToken))
+                Result.success(AuthResult(body.shadeId, body.userId, body.accessToken, deviceId = body.deviceId))
             } else {
                 Result.failure(Exception("Verification failed"))
             }
@@ -93,5 +93,6 @@ class AuthRepositoryImpl @Inject constructor(
         authResult.accessToken?.let { keyVaultManager.saveAccessToken(it) }
         authResult.idPrivateKey?.let { keyVaultManager.saveEd25519PrivateKey(it) }
         authResult.encPrivateKey?.let { keyVaultManager.saveX25519PrivateKey(it) }
+        authResult.deviceId?.let { keyVaultManager.saveDeviceId(it) }
     }
 }

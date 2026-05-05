@@ -55,9 +55,6 @@ fun AuthScreen(
 
     LaunchedEffect(uiState) {
         when (uiState) {
-            is AuthUiState.Authenticated -> {
-                onAuthSuccess()
-            }
             is AuthUiState.Success -> {
                 if ((uiState as AuthUiState.Success).mnemonic.isEmpty()) {
                     onAuthSuccess()
@@ -67,25 +64,19 @@ fun AuthScreen(
         }
     }
 
-    if (uiState is AuthUiState.Authenticated) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = AccentPurple)
-        }
-    } else {
-        AuthScreenContent(
-            uiState = uiState,
-            onLogin = { shadeId, mnemonic ->
-                viewModel.login(shadeId, mnemonic, "Android Device")
-            },
-            onRegister = {
-                viewModel.register("Android Device")
-            },
-            onResetUiState = {
-                viewModel.resetUiState()
-            },
-            onAuthSuccess = onAuthSuccess
-        )
-    }
+    AuthScreenContent(
+        uiState = uiState,
+        onLogin = { shadeId, mnemonic ->
+            viewModel.login(shadeId, mnemonic, "Android Device")
+        },
+        onRegister = {
+            viewModel.register("Android Device")
+        },
+        onResetUiState = {
+            viewModel.resetUiState()
+        },
+        onAuthSuccess = onAuthSuccess
+    )
 }
 
 @Composable
@@ -98,6 +89,7 @@ fun AuthScreenContent(
 ) {
     var currentStep by rememberSaveable { mutableStateOf(AuthStep.WELCOME) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val scheme = MaterialTheme.colorScheme
 
     LaunchedEffect(currentStep) {
         onResetUiState()
@@ -118,9 +110,9 @@ fun AuthScreenContent(
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            RichBlack,
-                            DeepPurple.copy(alpha = 0.6f),
-                            RichBlack
+                            scheme.background,
+                            scheme.primaryContainer.copy(alpha = 0.55f),
+                            scheme.background
                         )
                     )
                 )
@@ -193,7 +185,7 @@ fun WelcomeLayout(onNavigate: (AuthStep) -> Unit) {
                 text = stringResource(R.string.app_name),
                 style = if (isLandscape) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.ExtraBold,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 letterSpacing = 6.sp
             )
         }
@@ -210,7 +202,7 @@ fun WelcomeLayout(onNavigate: (AuthStep) -> Unit) {
             Text(
                 text = stringResource(R.string.welcome_greeting),
                 style = MaterialTheme.typography.titleLarge,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
@@ -261,7 +253,7 @@ fun WelcomeLayout(onNavigate: (AuthStep) -> Unit) {
                     .height(54.dp),
                 border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(width = 1.5.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color.White
+                    contentColor = MaterialTheme.colorScheme.onBackground
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {
@@ -277,13 +269,14 @@ fun WelcomeLayout(onNavigate: (AuthStep) -> Unit) {
 
 @Composable
 fun InfoBubble(text: String, icon: ImageVector) {
+    val scheme = MaterialTheme.colorScheme
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color.White.copy(alpha = 0.06f),
+        color = scheme.onSurface.copy(alpha = 0.06f),
         shape = RoundedCornerShape(16.dp),
         border = androidx.compose.foundation.BorderStroke(
             width = 0.5.dp,
-            color = OutlineMuted
+            color = scheme.outline
         )
     ) {
         Row(
@@ -308,7 +301,7 @@ fun InfoBubble(text: String, icon: ImageVector) {
             Text(
                 text = text,
                 style = MaterialTheme.typography.bodyMedium,
-                color = TextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Start
             )
         }
@@ -329,7 +322,7 @@ fun LoginLayout(
             Icon(
                 Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back",
-                tint = TextPrimary
+                tint = MaterialTheme.colorScheme.onBackground
             )
         }
 
@@ -340,13 +333,19 @@ fun LoginLayout(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            Image(
+                painter = painterResource(id = R.drawable.shade_logo),
+                contentDescription = null,
+                modifier = Modifier.size(80.dp)
+            )
+            Spacer(modifier = Modifier.height(20.dp))
             Text(
                 text = stringResource(R.string.login),
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onBackground
             )
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
             OutlinedTextField(
                 value = shadeIdInput,
@@ -356,11 +355,11 @@ fun LoginLayout(
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = AccentPurple,
-                    unfocusedBorderColor = OutlineMuted,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
                     focusedLabelColor = AccentPurple,
-                    unfocusedLabelColor = TextMuted,
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary,
+                    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
                     cursorColor = AccentPurple
                 )
             )
@@ -370,15 +369,15 @@ fun LoginLayout(
                 onValueChange = { mnemonicInput = it },
                 label = { Text(stringResource(R.string.mnemonic_label)) },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text(stringResource(R.string.mnemonic_placeholder), color = TextMuted) },
+                placeholder = { Text(stringResource(R.string.mnemonic_placeholder), color = MaterialTheme.colorScheme.onSurfaceVariant) },
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = AccentPurple,
-                    unfocusedBorderColor = OutlineMuted,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
                     focusedLabelColor = AccentPurple,
-                    unfocusedLabelColor = TextMuted,
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary,
+                    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
                     cursorColor = AccentPurple
                 )
             )
@@ -438,7 +437,7 @@ fun RegisterLayout(
             Icon(
                 Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back",
-                tint = TextPrimary
+                tint = MaterialTheme.colorScheme.onBackground
             )
         }
 
@@ -449,18 +448,24 @@ fun RegisterLayout(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            Image(
+                painter = painterResource(id = R.drawable.shade_logo),
+                contentDescription = null,
+                modifier = Modifier.size(80.dp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = stringResource(R.string.register),
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onBackground
             )
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             Text(
                 text = stringResource(R.string.register_notice),
                 textAlign = TextAlign.Center,
-                color = TextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
@@ -473,10 +478,10 @@ fun RegisterLayout(
                         onAuthSuccess()
                     }
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = SurfaceElevated),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("I understand, Continue", color = TextPrimary)
+                Text("I understand, Continue", color = MaterialTheme.colorScheme.onBackground)
             }
 
             if (uiState !is AuthUiState.Success) {
@@ -562,9 +567,9 @@ fun SuccessSection(state: AuthUiState.Success, snackbarHostState: SnackbarHostSt
                             snackbarHostState.showSnackbar(context.getString(R.string.id_copied))
                         }
                     },
-                color = SurfaceElevated,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(0.5.dp, OutlineMuted)
+                border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline)
             ) {
                 Row(
                     modifier = Modifier.padding(16.dp),
@@ -575,12 +580,12 @@ fun SuccessSection(state: AuthUiState.Success, snackbarHostState: SnackbarHostSt
                         Text(
                             text = stringResource(R.string.shade_id),
                             style = MaterialTheme.typography.labelMedium,
-                            color = TextMuted
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             text = id,
                             style = MaterialTheme.typography.titleMedium,
-                            color = TextPrimary,
+                            color = MaterialTheme.colorScheme.onBackground,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -616,16 +621,16 @@ fun SuccessSection(state: AuthUiState.Success, snackbarHostState: SnackbarHostSt
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(220.dp)
-                    .background(SurfaceElevated, RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(16.dp))
                     .padding(12.dp)
             ) {
                 items(state.mnemonic) { word ->
                     Surface(
                         modifier = Modifier.padding(4.dp),
-                        color = SurfaceContainer,
+                        color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(10.dp),
                         border = androidx.compose.foundation.BorderStroke(
-                            0.5.dp, OutlineMuted
+                            0.5.dp, MaterialTheme.colorScheme.outline
                         )
                     ) {
                         Text(
@@ -633,7 +638,7 @@ fun SuccessSection(state: AuthUiState.Success, snackbarHostState: SnackbarHostSt
                             modifier = Modifier.padding(8.dp),
                             textAlign = TextAlign.Center,
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextPrimary,
+                            color = MaterialTheme.colorScheme.onBackground,
                             fontWeight = FontWeight.Medium
                         )
                     }

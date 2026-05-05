@@ -10,7 +10,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import com.shade.app.R
-import com.shade.app.domain.usecase.message.FetchUndeliveredMessagesUseCase
+import com.shade.app.domain.usecase.message.FetchInboxUseCase
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 
@@ -18,7 +18,7 @@ import dagger.assisted.AssistedInject
 class FetchMessagesWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted params: WorkerParameters,
-    private val fetchUndeliveredMessagesUseCase: FetchUndeliveredMessagesUseCase
+    private val fetchInboxUseCase: FetchInboxUseCase
 ) : CoroutineWorker(context, params) {
 
 
@@ -28,8 +28,8 @@ class FetchMessagesWorker @AssistedInject constructor(
     }
     override suspend fun doWork(): Result {
         return try {
-            Log.d(TAG, "Fetching undelivered messages...")
-            fetchUndeliveredMessagesUseCase()
+            Log.d(TAG, "Draining inbox...")
+            fetchInboxUseCase()
             Result.success()
         } catch (e: Exception) {
             Log.e(TAG, "Failed: ${e.message}")
@@ -39,7 +39,7 @@ class FetchMessagesWorker @AssistedInject constructor(
 
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val notification = NotificationCompat.Builder(applicationContext, "shade_messages")
-            .setSmallIcon(R.drawable.shade_logo)
+            .setSmallIcon(R.drawable.ic_stat_shade)
             .setContentTitle("Shade")
             .setContentText("Mesajlar alınıyor...")
             .setPriority(NotificationCompat.PRIORITY_LOW)

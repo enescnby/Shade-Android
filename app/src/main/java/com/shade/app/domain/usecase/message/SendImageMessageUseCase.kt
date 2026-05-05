@@ -79,6 +79,7 @@ class SendImageMessageUseCase @Inject constructor(
                 payload = encryptedPayload {
                     messageId = msgId
                     senderShadeId = myShadeId
+                    senderId = myUserId
                     receiverId = contact.userId
                     ciphertext = ByteString.copyFrom(Hex.decode(cipherHex))
                     nonce = ByteString.copyFrom(Hex.decode(nonceHex))

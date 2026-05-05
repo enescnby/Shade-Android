@@ -46,7 +46,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.shade.app.ui.theme.*
+import com.shade.app.ui.theme.AccentPurple
+import com.shade.app.ui.theme.NeonPurple
 import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,6 +59,7 @@ fun ProfileScreen(
     val contact by viewModel.contactState.collectAsState()
     var nameText by remember(contact) { mutableStateOf(contact?.savedName ?: "") }
     val context = LocalContext.current
+    val scheme = MaterialTheme.colorScheme
 
     LaunchedEffect(Unit) {
         viewModel.saveSuccess.collectLatest {
@@ -66,10 +68,10 @@ fun ProfileScreen(
     }
 
     Scaffold(
-        containerColor = RichBlack,
+        containerColor = scheme.background,
         topBar = {
             Surface(
-                color = SurfaceDark,
+                color = scheme.surface,
                 shadowElevation = 2.dp
             ) {
                 Box(
@@ -85,14 +87,14 @@ fun ProfileScreen(
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
-                            tint = TextPrimary
+                            tint = scheme.onSurface
                         )
                     }
                     Text(
                         text = "Profil",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary,
+                        color = scheme.onSurface,
                         modifier = Modifier.align(Alignment.Center)
                     )
                 }
@@ -124,7 +126,7 @@ fun ProfileScreen(
                 Surface(
                     modifier = Modifier.size(120.dp),
                     shape = CircleShape,
-                    color = SurfaceElevated
+                    color = scheme.surfaceContainerHigh
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
@@ -140,10 +142,10 @@ fun ProfileScreen(
             // Shade ID Card
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = SurfaceElevated,
+                color = scheme.surfaceContainerHigh,
                 shape = RoundedCornerShape(16.dp),
                 border = androidx.compose.foundation.BorderStroke(
-                    0.5.dp, OutlineMuted
+                    0.5.dp, scheme.outline
                 )
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -157,7 +159,7 @@ fun ProfileScreen(
                     Text(
                         contact?.shadeId ?: "Yükleniyor...",
                         style = MaterialTheme.typography.bodyLarge,
-                        color = TextPrimary,
+                        color = scheme.onSurface,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -168,7 +170,7 @@ fun ProfileScreen(
                 value = nameText,
                 onValueChange = { nameText = it },
                 label = { Text("Kişiyi Kaydet") },
-                placeholder = { Text("İsim", color = TextMuted) },
+                placeholder = { Text("İsim", color = scheme.onSurfaceVariant) },
                 modifier = Modifier.fillMaxWidth(),
                 leadingIcon = {
                     Icon(
@@ -181,14 +183,14 @@ fun ProfileScreen(
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = AccentPurple,
-                    unfocusedBorderColor = OutlineMuted,
+                    unfocusedBorderColor = scheme.outline,
                     focusedLabelColor = AccentPurple,
-                    unfocusedLabelColor = TextMuted,
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary,
+                    unfocusedLabelColor = scheme.onSurfaceVariant,
+                    focusedTextColor = scheme.onSurface,
+                    unfocusedTextColor = scheme.onSurface,
                     cursorColor = AccentPurple,
                     focusedLeadingIconColor = AccentPurple,
-                    unfocusedLeadingIconColor = TextMuted
+                    unfocusedLeadingIconColor = scheme.onSurfaceVariant
                 )
             )
 
@@ -207,7 +209,7 @@ fun ProfileScreen(
                 enabled = nameText.isNotBlank() && (nameText != contact?.savedName),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = AccentPurple,
-                    disabledContainerColor = SurfaceContainer
+                    disabledContainerColor = scheme.surfaceContainerHigh
                 )
             ) {
                 Icon(Icons.Default.Save, contentDescription = "Save")

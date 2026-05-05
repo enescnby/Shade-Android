@@ -7,7 +7,6 @@ import com.shade.app.R
 import com.shade.app.crypto.MnemonicManager
 import com.shade.app.domain.usecase.auth.LoginUseCase
 import com.shade.app.domain.usecase.auth.RegisterUseCase
-import com.shade.app.security.KeyVaultManager
 import com.shade.app.ui.util.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,14 +24,12 @@ sealed class AuthUiState {
         val shadeId: String? = null
     ) : AuthUiState()
     data class Error(val message: UiText) : AuthUiState()
-    object Authenticated : AuthUiState()
 }
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val registerUseCase: RegisterUseCase,
     private val loginUseCase: LoginUseCase,
-    private val keyVaultManager: KeyVaultManager,
     private val mnemonicManager: MnemonicManager
 ): ViewModel() {
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
@@ -40,20 +37,10 @@ class AuthViewModel @Inject constructor(
     private var fcmToken = ""
 
     init {
-        checkAuthStatus()
         fetchFcmToken()
     }
 
-    private fun checkAuthStatus() {
-        viewModelScope.launch {
-            if (!keyVaultManager.getAccessToken().isNullOrEmpty()) {
-                _uiState.value = AuthUiState.Authenticated
-            }
-        }
-    }
-
     fun resetUiState() {
-        if (_uiState.value is AuthUiState.Authenticated) return
         _uiState.value = AuthUiState.Idle
     }
 
