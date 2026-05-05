@@ -17,4 +17,8 @@ interface MessageRepository {
     suspend fun updateMessageStatusIfForward(messageId: String, newStatus: MessageStatus)
     suspend fun deleteMessage(message: MessageEntity)
     fun searchMessages(chatId: String, query: String): Flow<List<MessageEntity>>
+    suspend fun markAsDeleted(messageId: String)
+    suspend fun updateMessageContent(messageId: String, content: String)
+    suspend fun countMediaMessages(chatId: String): Int
+    suspend fun deleteMessagesOlderThan(chatId: String, cutoffMs: Long): Int
 }

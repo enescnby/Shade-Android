@@ -45,7 +45,8 @@ class ContactRepositoryImpl @Inject constructor(
                         userId = dto.userId,
                         shadeId = dto.shadeId,
                         encryptionPublicKey = dto.encryptionPublicKey,
-                        savedName = null,
+                        // Backend display_name dönüyorsa onu kullan, yoksa null (shadeId gösterilir)
+                        savedName = dto.displayName?.takeIf { it.isNotBlank() },
                         profileImagePath = null
                     )
                     contactDao.insertContact(newContact)

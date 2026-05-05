@@ -11,7 +11,10 @@ import com.shade.app.data.remote.api.UserService
 import com.shade.app.data.repository.TranslationRepository
 import com.shade.app.domain.repository.ChatRepository
 import com.shade.app.domain.repository.MessageRepository
+import com.shade.app.data.repository.ChatPrefsRepository
+import com.shade.app.domain.usecase.message.DeleteMessageForEveryoneUseCase
 import com.shade.app.domain.usecase.message.DownloadImageUseCase
+import com.shade.app.domain.usecase.message.EditMessageUseCase
 import com.shade.app.domain.usecase.message.MarkChatAsReadUseCase
 import com.shade.app.domain.usecase.message.SendImageMessageUseCase
 import com.shade.app.domain.usecase.message.SendMessageUseCase
@@ -48,7 +51,14 @@ data class ChatUiState(
     val lastSeenText: String = "",
     // Translation
     val translatedMessages: Map<String, String> = emptyMap(),
-    val translatingMessageId: String? = null
+    val translatingMessageId: String? = null,
+    // Edit
+    val editingMessage: MessageEntity? = null,
+    // Reply
+    val replyingToMessage: MessageEntity? = null,
+    // Chat customisation
+    val chatBackgroundColor: Int? = null,   // ARGB int, null = default
+    val autoDeleteMinutes: Int = 0          // 0 = disabled
 )
 
 @HiltViewModel
@@ -58,12 +68,15 @@ class ChatViewModel @Inject constructor(
     private val sendImageMessageUseCase: SendImageMessageUseCase,
     private val downloadImageUseCase: DownloadImageUseCase,
     private val markChatAsReadUseCase: MarkChatAsReadUseCase,
+    private val deleteMessageForEveryoneUseCase: DeleteMessageForEveryoneUseCase,
+    private val editMessageUseCase: EditMessageUseCase,
     private val chatRepository: ChatRepository,
     private val keyVaultManager: KeyVaultManager,
     private val userService: UserService,
     private val translationRepository: TranslationRepository,
     private val activeChatTracker: ActiveChatTracker,
     private val notificationHelper: NotificationHelper,
+    private val chatPrefsRepository: ChatPrefsRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -95,6 +108,7 @@ class ChatViewModel @Inject constructor(
         observeMessages()
         observeChatDetails()
         fetchUserStatus()
+        observeChatPrefs()
         viewModelScope.launch { markChatAsReadUseCase(chatId) }
     }
 
@@ -182,11 +196,40 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    private fun observeChatPrefs() {
+        chatPrefsRepository.getChatBackground(chatId)
+            .onEach { color -> _uiState.update { it.copy(chatBackgroundColor = color) } }
+            .launchIn(viewModelScope)
+
+        chatPrefsRepository.getAutoDeleteMinutes(chatId)
+            .onEach { min ->
+                _uiState.update { it.copy(autoDeleteMinutes = min) }
+                // Chat açıldığında mevcut süresi dolmuş mesajları hemen sil
+                if (min > 0) runAutoDeleteCleanup(min)
+            }
+            .launchIn(viewModelScope)
+    }
+
+    private fun runAutoDeleteCleanup(minutes: Int) {
+        viewModelScope.launch {
+            val cutoff = System.currentTimeMillis() - minutes * 60_000L
+            val deleted = messageRepository.deleteMessagesOlderThan(chatId, cutoff)
+            if (deleted > 0) Log.d(TAG, "Otomatik silme: $deleted mesaj silindi ($minutes dk)")
+        }
+    }
+
     fun sendMessage(content: String) {
         if (content.isBlank()) return
-        Log.d(TAG, "Metin mesajı gönderiliyor → chatId=$chatId")
+        val replyTo = _uiState.value.replyingToMessage
+        Log.d(TAG, "Metin mesajı gönderiliyor → chatId=$chatId, reply=${replyTo?.messageId}")
         viewModelScope.launch {
-            sendMessageUseCase(receiverShadeId = chatId, content = content)
+            sendMessageUseCase(
+                receiverShadeId = chatId,
+                content = content,
+                replyToId = replyTo?.messageId,
+                replyToContent = replyTo?.content?.take(80)
+            )
+            _uiState.update { it.copy(replyingToMessage = null) }
             Log.d(TAG, "Metin mesajı gönderildi")
         }
     }
@@ -235,6 +278,63 @@ class ChatViewModel @Inject constructor(
             }
             .catch { e -> Log.e(TAG, "Arama hatası: ${e.message}") }
             .launchIn(viewModelScope)
+    }
+
+    fun deleteForMe(message: MessageEntity) {
+        viewModelScope.launch {
+            messageRepository.deleteMessage(message)
+            Log.d(TAG, "Mesaj kendimden silindi: ${message.messageId}")
+        }
+    }
+
+    fun deleteForEveryone(message: MessageEntity) {
+        viewModelScope.launch {
+            deleteMessageForEveryoneUseCase(message)
+            Log.d(TAG, "Mesaj herkesten silindi: ${message.messageId}")
+        }
+    }
+
+    fun startEditing(message: MessageEntity) {
+        _uiState.update { it.copy(editingMessage = message) }
+    }
+
+    fun cancelEditing() {
+        _uiState.update { it.copy(editingMessage = null) }
+    }
+
+    fun confirmEdit(newContent: String) {
+        val message = _uiState.value.editingMessage ?: return
+        _uiState.update { it.copy(editingMessage = null) }
+        viewModelScope.launch {
+            editMessageUseCase(message, newContent)
+            Log.d(TAG, "Mesaj düzenlendi: ${message.messageId}")
+        }
+    }
+
+    // ── Reply ──────────────────────────────────────────────────────────────────
+    fun startReply(message: MessageEntity) {
+        _uiState.update { it.copy(replyingToMessage = message) }
+    }
+
+    fun cancelReply() {
+        _uiState.update { it.copy(replyingToMessage = null) }
+    }
+
+    // ── Chat background ────────────────────────────────────────────────────────
+    fun setChatBackground(colorArgb: Int?) {
+        viewModelScope.launch {
+            chatPrefsRepository.setChatBackground(chatId, colorArgb)
+        }
+    }
+
+    // ── Auto-delete ────────────────────────────────────────────────────────────
+    fun setAutoDeleteMinutes(minutes: Int) {
+        viewModelScope.launch {
+            chatPrefsRepository.setAutoDeleteMinutes(chatId, minutes)
+            _uiState.update { it.copy(autoDeleteMinutes = minutes) }
+            // Ayar değişince mevcut mesajları hemen temizle
+            if (minutes > 0) runAutoDeleteCleanup(minutes)
+        }
     }
 
     fun translateMessage(messageId: String, content: String, targetLang: String) {

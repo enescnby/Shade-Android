@@ -1,10 +1,13 @@
 package com.shade.app.data.remote.api
 
 import com.shade.app.data.remote.dto.LookupResponse
+import com.shade.app.data.remote.dto.UpdateDisplayNameRequest
 import com.shade.app.data.remote.dto.UserStatusResponse
 import retrofit2.Response
+import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.PATCH
 import retrofit2.http.Path
 
 interface UserService {
@@ -19,4 +22,11 @@ interface UserService {
         @Header("Authorization") token: String,
         @Path("shadeId") shadeId: String
     ): Response<UserStatusResponse>
+
+    /** Kendi görünen adını sunucuya günceller. Backend: PATCH /api/v1/user/displayname */
+    @PATCH("user/displayname")
+    suspend fun updateDisplayName(
+        @Header("Authorization") token: String,
+        @Body request: UpdateDisplayNameRequest
+    ): Response<Unit>
 }

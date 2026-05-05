@@ -46,7 +46,11 @@ class MessageRepositoryImpl @Inject constructor(
 
     override suspend fun updateMessageStatusIfForward(messageId: String, newStatus: MessageStatus) {
         val currentStatus = messageDao.getMessageStatus(messageId) ?: return
-        if (newStatus.ordinal > currentStatus.ordinal) {
+        // FAILED is a terminal error state — receipts can still move it forward to DELIVERED/READ
+        // because the server might have queued the message even if the WebSocket send returned false.
+        // Only skip the update if we would go "backward" (e.g. DELIVERED → SENT).
+        val effectiveCurrent = if (currentStatus == MessageStatus.FAILED) MessageStatus.PENDING else currentStatus
+        if (newStatus.ordinal > effectiveCurrent.ordinal) {
             messageDao.updateMessageStatus(messageId, newStatus)
         }
     }
@@ -55,4 +59,15 @@ class MessageRepositoryImpl @Inject constructor(
 
     override fun searchMessages(chatId: String, query: String): Flow<List<MessageEntity>> =
         messageDao.searchMessages(chatId, query)
+
+    override suspend fun markAsDeleted(messageId: String) = messageDao.markAsDeleted(messageId)
+
+    override suspend fun updateMessageContent(messageId: String, content: String) =
+        messageDao.updateContent(messageId, content)
+
+    override suspend fun countMediaMessages(chatId: String): Int =
+        messageDao.countMediaMessages(chatId)
+
+    override suspend fun deleteMessagesOlderThan(chatId: String, cutoffMs: Long): Int =
+        messageDao.deleteMessagesOlderThan(chatId, cutoffMs)
 }
