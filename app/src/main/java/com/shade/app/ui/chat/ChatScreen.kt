@@ -221,7 +221,7 @@ fun ChatScreen(
     // Ses kaydı durumu
     var isRecording by remember { mutableStateOf(false) }
     var recordingDurationMs by remember { mutableStateOf(0L) }
-    val audioRecorder = remember { AudioRecorderHelper(context) }
+    val audioRecorder = remember { AudioRecorderHelper() }
 
     // Language selection dialog
     if (showLanguageDialog) {
