@@ -74,6 +74,17 @@
     <string name="recovery_description">Hesabına erişimi geri kazanmak için Shade Kimliğini ve 12 kelimelik kurtarma ifadeni gir.</string>
     <string name="recover_button">Erişimi Geri Yükle</string>
 
+    <!-- Grup sohbet -->
+    <string name="create_group_title">Yeni Grup</string>
+    <string name="create_group_action">Oluştur</string>
+    <string name="group_name_hint">Grup adı</string>
+    <string name="group_member_user_id_hint">Üye ekle (kullanıcı ID)</string>
+    <string name="group_members_header">Üyeler</string>
+    <string name="new_group">Yeni grup</string>
+    <string name="invite_link_copied">Davet bağlantısı panoya kopyalandı</string>
+    <string name="redeem_invite_hint">Davet kodu girin</string>
+    <string name="redeem_invite_action">Kullan</string>
+
     <!-- Bildirim stringleri -->
     <string name="notification_more_messages">+%d daha fazla mesaj</string>
     <string name="notification_summary">%1$d sohbetten %2$d mesaj</string>

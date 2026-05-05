@@ -23,9 +23,17 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
     }
 }
 
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // Add group columns to chats table
+        database.execSQL("ALTER TABLE chats ADD COLUMN isGroup INTEGER NOT NULL DEFAULT 0")
+        database.execSQL("ALTER TABLE chats ADD COLUMN groupName TEXT")
+    }
+}
+
 @Database(
     entities = [MessageEntity::class, ContactEntity::class, ChatEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 @TypeConverters(RoomConverters::class)

@@ -4,6 +4,7 @@ import android.content.Context
 import com.shade.app.BuildConfig
 import com.shade.app.data.remote.api.AuditService
 import com.shade.app.data.remote.api.AuthService
+import com.shade.app.data.remote.api.GroupService
 import com.shade.app.data.remote.api.MediaService
 import com.shade.app.data.remote.api.MessageService
 import com.shade.app.data.remote.api.TranslationService
@@ -104,6 +105,12 @@ object NetworkModule {
     @Singleton
     fun provideWebSessionService(retrofit: Retrofit): WebSessionService {
         return retrofit.create(WebSessionService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideGroupService(retrofit: Retrofit): GroupService {
+        return retrofit.create(GroupService::class.java)
     }
 
     @Provides

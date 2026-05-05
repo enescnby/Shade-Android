@@ -40,6 +40,7 @@ import com.shade.app.ui.audit.SecurityAuditScreen
 import com.shade.app.ui.auth.AuthScreen
 import com.shade.app.ui.chat.ChatScreen
 import com.shade.app.ui.contacts.ContactsScreen
+import com.shade.app.ui.group.CreateGroupScreen
 import com.shade.app.ui.home.HomeScreen
 import com.shade.app.ui.navigation.Screen
 import com.shade.app.ui.settings.SettingsScreen
@@ -220,6 +221,10 @@ fun AppNavigation(
                     Log.d(TAG, "Home → Contacts ekranına geçiliyor")
                     navController.navigate(Screen.Contacts.route)
                 },
+                onNavigateToCreateGroup = {
+                    Log.d(TAG, "Home → CreateGroup ekranına geçiliyor")
+                    navController.navigate(Screen.CreateGroup.route)
+                },
                 onSettingsClick = {
                     Log.d(TAG, "Home → Settings")
                     navController.navigate(Screen.Settings.route)
@@ -327,6 +332,19 @@ fun AppNavigation(
                 onBackClick = {
                     Log.d(TAG, "SecurityAudit → geri")
                     navController.popBackStack()
+                }
+            )
+        }
+
+        composable(Screen.CreateGroup.route) {
+            Log.d(TAG, "→ CreateGroup ekranı")
+            CreateGroupScreen(
+                onBack = { navController.popBackStack() },
+                onGroupCreated = { groupId, groupName ->
+                    Log.d(TAG, "Group created: $groupId ($groupName)")
+                    navController.navigate(Screen.Chat.createRoute(groupId, groupName)) {
+                        popUpTo(Screen.CreateGroup.route) { inclusive = true }
+                    }
                 }
             )
         }

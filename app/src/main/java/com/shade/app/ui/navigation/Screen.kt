@@ -16,4 +16,5 @@ sealed class Screen(val route: String) {
     object Qr : Screen("qr")
     object QrScanner : Screen("qr_scanner")
     object MyProfile : Screen("my_profile")
+    object CreateGroup : Screen("create_group")
 }
