@@ -3,6 +3,8 @@ package com.shade.app.data.local
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.shade.app.data.local.converters.RoomConverters
 import com.shade.app.data.local.dao.ChatDao
 import com.shade.app.data.local.dao.ContactDao
@@ -11,9 +13,19 @@ import com.shade.app.data.local.entities.ChatEntity
 import com.shade.app.data.local.entities.ContactEntity
 import com.shade.app.data.local.entities.MessageEntity
 
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE messages ADD COLUMN audioPath TEXT")
+        database.execSQL("ALTER TABLE messages ADD COLUMN audioDurationMs INTEGER")
+        database.execSQL("ALTER TABLE messages ADD COLUMN filePath TEXT")
+        database.execSQL("ALTER TABLE messages ADD COLUMN fileName TEXT")
+        database.execSQL("ALTER TABLE messages ADD COLUMN fileSizeBytes INTEGER")
+    }
+}
+
 @Database(
     entities = [MessageEntity::class, ContactEntity::class, ChatEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 @TypeConverters(RoomConverters::class)

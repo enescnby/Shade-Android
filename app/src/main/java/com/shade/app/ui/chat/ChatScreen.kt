@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -210,6 +211,17 @@ fun ChatScreen(
     ) { uri ->
         uri?.let { viewModel.sendImage(it) }
     }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let { viewModel.sendFile(it) }
+    }
+
+    // Ses kaydı durumu
+    var isRecording by remember { mutableStateOf(false) }
+    var recordingDurationMs by remember { mutableStateOf(0L) }
+    val audioRecorder = remember { AudioRecorderHelper(context) }
 
     // Language selection dialog
     if (showLanguageDialog) {
@@ -430,10 +442,13 @@ fun ChatScreen(
                                 isMe = isMe,
                                 isDownloading = uiState.downloadingMessageId == message.messageId,
                                 downloadProgress = if (uiState.downloadingMessageId == message.messageId) uiState.downloadProgress else 0f,
+                                isDownloadingFile = uiState.downloadingFileMessageId == message.messageId,
                                 translatedText = uiState.translatedMessages[message.messageId],
                                 isTranslating = uiState.translatingMessageId == message.messageId,
                                 onImageClick = { path -> fullScreenImagePath = path },
                                 onDownloadClick = { viewModel.downloadImage(message) },
+                                onDownloadAudioClick = { viewModel.downloadAudio(message) },
+                                onDownloadFileClick = { viewModel.downloadFile(message) },
                                 onTranslateRequest = {
                                     pendingTranslationMessageId = message.messageId
                                     pendingTranslationContent = message.content
@@ -472,10 +487,13 @@ fun ChatScreen(
                             isMe = isMe,
                             isDownloading = uiState.downloadingMessageId == message.messageId,
                             downloadProgress = if (uiState.downloadingMessageId == message.messageId) uiState.downloadProgress else 0f,
+                            isDownloadingFile = uiState.downloadingFileMessageId == message.messageId,
                             translatedText = uiState.translatedMessages[message.messageId],
                             isTranslating = uiState.translatingMessageId == message.messageId,
                             onImageClick = { path -> fullScreenImagePath = path },
                             onDownloadClick = { viewModel.downloadImage(message) },
+                            onDownloadAudioClick = { viewModel.downloadAudio(message) },
+                            onDownloadFileClick = { viewModel.downloadFile(message) },
                             onTranslateRequest = {
                                 pendingTranslationMessageId = message.messageId
                                 pendingTranslationContent = message.content
@@ -614,6 +632,17 @@ fun ChatScreen(
                                         modifier = Modifier.size(26.dp)
                                     )
                                 }
+                                // Dosya gönder
+                                IconButton(
+                                    onClick = { filePickerLauncher.launch("*/*") }
+                                ) {
+                                    Icon(
+                                        Icons.Default.AttachFile,
+                                        contentDescription = "Dosya",
+                                        tint = AccentPurple,
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
                             }
 
                             OutlinedTextField(
@@ -655,32 +684,70 @@ fun ChatScreen(
                             Spacer(modifier = Modifier.width(4.dp))
 
                             val sendEnabled = messageText.isNotBlank()
-                            Surface(
-                                onClick = {
-                                    if (sendEnabled) {
-                                        if (editingMsg != null) {
-                                            viewModel.confirmEdit(messageText)
-                                            messageText = ""
-                                        } else {
-                                            viewModel.sendMessage(messageText)
-                                            messageText = ""
-                                        }
+                            val showMic = !sendEnabled && editingMsg == null
+
+                            if (showMic) {
+                                // Mikrofon butonu — basılı tut ile kayıt
+                                Surface(
+                                    onClick = {},
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .align(Alignment.Bottom)
+                                        .pointerInput(Unit) {
+                                            detectTapGestures(
+                                                onPress = {
+                                                    isRecording = true
+                                                    recordingDurationMs = 0L
+                                                    audioRecorder.start(context)
+                                                    tryAwaitRelease()
+                                                    isRecording = false
+                                                    val (file, duration) = audioRecorder.stop()
+                                                    if (file != null && duration > 500) {
+                                                        viewModel.sendAudio(file, duration)
+                                                    }
+                                                }
+                                            )
+                                        },
+                                    shape = CircleShape,
+                                    color = if (isRecording) Color(0xFFFF5252) else AccentPurple
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
+                                            contentDescription = "Ses Kaydı",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
                                     }
-                                },
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .align(Alignment.Bottom),
-                                shape = CircleShape,
-                                color = if (sendEnabled) AccentPurple else SurfaceContainer
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        if (editingMsg != null) Icons.Default.Check
-                                        else Icons.AutoMirrored.Filled.Send,
-                                        contentDescription = "Gönder",
-                                        tint = if (sendEnabled) Color.White else TextMuted,
-                                        modifier = Modifier.size(20.dp)
-                                    )
+                                }
+                            } else {
+                                Surface(
+                                    onClick = {
+                                        if (sendEnabled) {
+                                            if (editingMsg != null) {
+                                                viewModel.confirmEdit(messageText)
+                                                messageText = ""
+                                            } else {
+                                                viewModel.sendMessage(messageText)
+                                                messageText = ""
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .align(Alignment.Bottom),
+                                    shape = CircleShape,
+                                    color = if (sendEnabled) AccentPurple else SurfaceContainer
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            if (editingMsg != null) Icons.Default.Check
+                                            else Icons.AutoMirrored.Filled.Send,
+                                            contentDescription = "Gönder",
+                                            tint = if (sendEnabled) Color.White else TextMuted,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -698,10 +765,13 @@ fun MessageItem(
     isMe: Boolean,
     isDownloading: Boolean = false,
     downloadProgress: Float = 0f,
+    isDownloadingFile: Boolean = false,
     translatedText: String? = null,
     isTranslating: Boolean = false,
     onImageClick: (String) -> Unit = {},
     onDownloadClick: () -> Unit = {},
+    onDownloadAudioClick: () -> Unit = {},
+    onDownloadFileClick: () -> Unit = {},
     onTranslateRequest: () -> Unit = {},
     onDeleteForMe: () -> Unit = {},
     onDeleteForEveryone: (() -> Unit)? = null,
@@ -1064,6 +1134,29 @@ fun MessageItem(
                             } // Row (saat+tik) kapandı
                         } // TEXT Column kapandı
                     } // TEXT if kapandı
+
+                    // ── AUDIO Balonu ──────────────────────────────────────────
+                    if (message.messageType == MessageType.AUDIO) {
+                        AudioMessageBubble(
+                            message = message,
+                            isMe = isMe,
+                            isDownloading = isDownloadingFile,
+                            onDownload = onDownloadAudioClick,
+                            timeString = timeString
+                        )
+                    }
+
+                    // ── FILE Balonu ───────────────────────────────────────────
+                    if (message.messageType == MessageType.FILE) {
+                        FileMessageBubble(
+                            message = message,
+                            isMe = isMe,
+                            isDownloading = isDownloadingFile,
+                            onDownload = onDownloadFileClick,
+                            timeString = timeString
+                        )
+                    }
+
                 } // else Column(bgModifier) kapandı
                 } // Surface kapandı
             } // Box kapandı
@@ -1254,5 +1347,274 @@ fun ZoomableImage(
                 ),
             contentScale = ContentScale.Fit
         )
+    }
+}
+
+/* ─── Ses Mesajı Balonu ────────────────────────────────────────────────────── */
+
+@Composable
+fun AudioMessageBubble(
+    message: MessageEntity,
+    isMe: Boolean,
+    isDownloading: Boolean,
+    onDownload: () -> Unit,
+    timeString: String
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var isPlaying by remember { mutableStateOf(false) }
+    var progress by remember { mutableStateOf(0f) }
+    val mediaPlayer = remember { android.media.MediaPlayer() }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            if (mediaPlayer.isPlaying) mediaPlayer.stop()
+            mediaPlayer.release()
+        }
+    }
+
+    val durationSec = ((message.audioDurationMs ?: 0L) / 1000).toInt()
+    val durationText = "%d:%02d".format(durationSec / 60, durationSec % 60)
+
+    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (message.audioPath != null) {
+                // Çal / Durdur butonu
+                IconButton(
+                    onClick = {
+                        if (isPlaying) {
+                            mediaPlayer.pause()
+                            isPlaying = false
+                        } else {
+                            try {
+                                if (!mediaPlayer.isPlaying) {
+                                    mediaPlayer.reset()
+                                    mediaPlayer.setDataSource(message.audioPath)
+                                    mediaPlayer.prepare()
+                                    mediaPlayer.setOnCompletionListener {
+                                        isPlaying = false
+                                        progress = 0f
+                                    }
+                                }
+                                mediaPlayer.start()
+                                isPlaying = true
+                            } catch (e: Exception) {
+                                android.util.Log.e("AudioBubble", "Playback error: ${e.message}")
+                            }
+                        }
+                    },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        tint = if (isMe) Color.White else AccentPurple,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth().height(3.dp),
+                        color = if (isMe) Color.White else AccentPurple,
+                        trackColor = if (isMe) Color.White.copy(0.3f) else SurfaceContainer
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        durationText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isMe) Color.White.copy(0.7f) else TextMuted,
+                        fontSize = 10.sp
+                    )
+                }
+            } else {
+                // Henüz indirilmemiş
+                if (isDownloading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(32.dp),
+                        color = if (isMe) Color.White else AccentPurple,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    IconButton(onClick = onDownload, modifier = Modifier.size(40.dp)) {
+                        Icon(
+                            Icons.Default.Download,
+                            contentDescription = "İndir",
+                            tint = if (isMe) Color.White else AccentPurple
+                        )
+                    }
+                }
+                Text(
+                    "🎤 $durationText",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isMe) Color.White.copy(0.7f) else TextMuted
+                )
+            }
+        }
+        Row(
+            modifier = Modifier.align(Alignment.End),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                timeString,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isMe) Color.White.copy(0.65f) else TextMuted,
+                fontSize = 10.sp
+            )
+            if (isMe) MessageStatusIcon(status = message.status)
+        }
+    }
+}
+
+/* ─── Dosya Mesajı Balonu ──────────────────────────────────────────────────── */
+
+@Composable
+fun FileMessageBubble(
+    message: MessageEntity,
+    isMe: Boolean,
+    isDownloading: Boolean,
+    onDownload: () -> Unit,
+    timeString: String
+) {
+    val fileName = message.fileName ?: "Dosya"
+    val fileSizeText = message.fileSizeBytes?.let { formatFileSize(it) } ?: ""
+
+    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(
+                        if (isMe) Color.White.copy(0.15f) else AccentPurple.copy(0.15f),
+                        RoundedCornerShape(8.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.InsertDriveFile,
+                    contentDescription = null,
+                    tint = if (isMe) Color.White else AccentPurple,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    fileName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isMe) Color.White else TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    fontWeight = FontWeight.Medium
+                )
+                if (fileSizeText.isNotBlank()) {
+                    Text(
+                        fileSizeText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isMe) Color.White.copy(0.65f) else TextMuted,
+                        fontSize = 10.sp
+                    )
+                }
+            }
+            if (message.filePath == null) {
+                if (isDownloading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = if (isMe) Color.White else AccentPurple,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    IconButton(onClick = onDownload, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            Icons.Default.Download,
+                            contentDescription = "İndir",
+                            tint = if (isMe) Color.White else AccentPurple
+                        )
+                    }
+                }
+            } else {
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = "İndirildi",
+                    tint = if (isMe) Color.White.copy(0.7f) else AccentPurple,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+        Row(
+            modifier = Modifier.align(Alignment.End),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                timeString,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isMe) Color.White.copy(0.65f) else TextMuted,
+                fontSize = 10.sp
+            )
+            if (isMe) MessageStatusIcon(status = message.status)
+        }
+    }
+}
+
+/* ─── Yardımcı ─────────────────────────────────────────────────────────────── */
+
+fun formatFileSize(bytes: Long): String {
+    return when {
+        bytes < 1024 -> "$bytes B"
+        bytes < 1024 * 1024 -> "${bytes / 1024} KB"
+        else -> "${"%.1f".format(bytes / (1024.0 * 1024.0))} MB"
+    }
+}
+
+/* ─── Ses Kaydedici Yardımcısı ─────────────────────────────────────────────── */
+
+class AudioRecorderHelper {
+    private var mediaRecorder: android.media.MediaRecorder? = null
+    private var outputFile: java.io.File? = null
+    private var startTime: Long = 0L
+
+    constructor()
+
+    fun start(context: android.content.Context) {
+        val dir = java.io.File(context.cacheDir, "audio_temp").also { it.mkdirs() }
+        outputFile = java.io.File(dir, "record_${System.currentTimeMillis()}.aac")
+        startTime = System.currentTimeMillis()
+
+        mediaRecorder = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            android.media.MediaRecorder(context)
+        } else {
+            @Suppress("DEPRECATION")
+            android.media.MediaRecorder()
+        }.apply {
+            setAudioSource(android.media.MediaRecorder.AudioSource.MIC)
+            setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4)
+            setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC)
+            setAudioSamplingRate(44100)
+            setAudioEncodingBitRate(128000)
+            setOutputFile(outputFile!!.absolutePath)
+            try { prepare(); start() } catch (e: Exception) {
+                android.util.Log.e("AudioRecorder", "Start failed: ${e.message}")
+            }
+        }
+    }
+
+    /** Returns Pair(file, durationMs). File is null on failure. */
+    fun stop(): Pair<java.io.File?, Long> {
+        val duration = System.currentTimeMillis() - startTime
+        return try {
+            mediaRecorder?.stop()
+            mediaRecorder?.release()
+            mediaRecorder = null
+            Pair(outputFile, duration)
+        } catch (e: Exception) {
+            android.util.Log.e("AudioRecorder", "Stop failed: ${e.message}")
+            Pair(null, 0L)
+        }
     }
 }

@@ -70,4 +70,10 @@ class MessageRepositoryImpl @Inject constructor(
 
     override suspend fun deleteMessagesOlderThan(chatId: String, cutoffMs: Long): Int =
         messageDao.deleteMessagesOlderThan(chatId, cutoffMs)
+
+    override suspend fun updateAudioPath(messageId: String, path: String, durationMs: Long) =
+        messageDao.updateAudioPath(messageId, path, durationMs)
+
+    override suspend fun updateFilePath(messageId: String, path: String) =
+        messageDao.updateFilePath(messageId, path)
 }

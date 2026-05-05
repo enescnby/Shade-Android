@@ -21,10 +21,24 @@ interface MediaService {
         @Part image: MultipartBody.Part
     ): Response<ImageUploadResponse>
 
+    @Multipart
+    @POST("media/upload")
+    suspend fun uploadFile(
+        @Header("Authorization") token: String,
+        @Part file: MultipartBody.Part
+    ): Response<ImageUploadResponse>
+
     @GET("media/{imageId}")
     @Streaming
     suspend fun downloadImage(
         @Header("Authorization") token: String,
         @Path("imageId") imageId: String
+    ): Response<ResponseBody>
+
+    @GET("media/{fileId}")
+    @Streaming
+    suspend fun downloadFile(
+        @Header("Authorization") token: String,
+        @Path("fileId") fileId: String
     ): Response<ResponseBody>
 }

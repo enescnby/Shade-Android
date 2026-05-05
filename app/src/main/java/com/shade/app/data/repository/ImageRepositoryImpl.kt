@@ -34,6 +34,40 @@ class ImageRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun uploadEncryptedFile(encryptedBytes: ByteArray, fileName: String): Result<ImageUploadResponse> {
+        return try {
+            val token = "Bearer ${keyVaultManager.getAccessToken()}"
+            val requestBody = encryptedBytes.toRequestBody("application/octet-stream".toMediaType())
+            val part = MultipartBody.Part.createFormData("file", fileName, requestBody)
+
+            val response = mediaService.uploadFile(token, part)
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                Result.failure(Exception("File upload failed: ${response.code()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun downloadEncryptedFile(fileId: String): Result<ByteArray> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val token = "Bearer ${keyVaultManager.getAccessToken()}"
+                val response = mediaService.downloadFile(token, fileId)
+                if (response.isSuccessful && response.body() != null) {
+                    val bytes = response.body()!!.bytes()
+                    Result.success(bytes)
+                } else {
+                    Result.failure(Exception("File download failed: ${response.code()}"))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    }
+
     override suspend fun downloadEncryptedImage(imageId: String): Result<ByteArray> {
         return downloadEncryptedImageWithProgress(imageId) {}
     }

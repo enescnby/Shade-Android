@@ -14,11 +14,15 @@ import com.shade.app.domain.repository.ChatRepository
 import com.shade.app.domain.repository.MessageRepository
 import com.shade.app.data.repository.ChatPrefsRepository
 import com.shade.app.domain.usecase.message.DeleteMessageForEveryoneUseCase
+import com.shade.app.domain.usecase.message.DownloadFileUseCase
 import com.shade.app.domain.usecase.message.DownloadImageUseCase
 import com.shade.app.domain.usecase.message.EditMessageUseCase
 import com.shade.app.domain.usecase.message.MarkChatAsReadUseCase
+import com.shade.app.domain.usecase.message.SendAudioMessageUseCase
+import com.shade.app.domain.usecase.message.SendFileMessageUseCase
 import com.shade.app.domain.usecase.message.SendImageMessageUseCase
 import com.shade.app.domain.usecase.message.SendMessageUseCase
+import java.io.File
 import com.shade.app.security.KeyVaultManager
 import com.shade.app.util.ActiveChatTracker
 import com.shade.app.util.NotificationHelper
@@ -42,7 +46,10 @@ data class ChatUiState(
     val initialScrollIndex: Int? = null,
     val firstUnreadMessageId: String? = null,
     val isSendingImage: Boolean = false,
+    val isSendingAudio: Boolean = false,
+    val isSendingFile: Boolean = false,
     val downloadingMessageId: String? = null,
+    val downloadingFileMessageId: String? = null,
     val downloadProgress: Float = 0f,
     // Search
     val isSearchActive: Boolean = false,
@@ -71,6 +78,9 @@ class ChatViewModel @Inject constructor(
     private val markChatAsReadUseCase: MarkChatAsReadUseCase,
     private val deleteMessageForEveryoneUseCase: DeleteMessageForEveryoneUseCase,
     private val editMessageUseCase: EditMessageUseCase,
+    private val sendAudioMessageUseCase: SendAudioMessageUseCase,
+    private val sendFileMessageUseCase: SendFileMessageUseCase,
+    private val downloadFileUseCase: DownloadFileUseCase,
     private val chatRepository: ChatRepository,
     private val keyVaultManager: KeyVaultManager,
     private val userService: UserService,
@@ -248,6 +258,38 @@ class ChatViewModel @Inject constructor(
             _uiState.update { it.copy(isSendingImage = true) }
             sendImageMessageUseCase(receiverShadeId = chatId, imageUri = uri)
             _uiState.update { it.copy(isSendingImage = false) }
+        }
+    }
+
+    fun sendAudio(audioFile: File, durationMs: Long) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSendingAudio = true) }
+            sendAudioMessageUseCase(receiverShadeId = chatId, audioFile = audioFile, durationMs = durationMs)
+            _uiState.update { it.copy(isSendingAudio = false) }
+        }
+    }
+
+    fun sendFile(uri: Uri) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSendingFile = true) }
+            sendFileMessageUseCase(receiverShadeId = chatId, fileUri = uri)
+            _uiState.update { it.copy(isSendingFile = false) }
+        }
+    }
+
+    fun downloadAudio(message: MessageEntity) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(downloadingFileMessageId = message.messageId) }
+            downloadFileUseCase.downloadAudio(message)
+            _uiState.update { it.copy(downloadingFileMessageId = null) }
+        }
+    }
+
+    fun downloadFile(message: MessageEntity) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(downloadingFileMessageId = message.messageId) }
+            downloadFileUseCase.downloadFile(message)
+            _uiState.update { it.copy(downloadingFileMessageId = null) }
         }
     }
 

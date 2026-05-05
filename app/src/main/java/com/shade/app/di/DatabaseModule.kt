@@ -2,6 +2,7 @@ package com.shade.app.di
 
 import android.content.Context
 import androidx.room.Room
+import com.shade.app.data.local.MIGRATION_4_5
 import com.shade.app.data.local.ShadeDatabase
 import com.shade.app.data.local.dao.ChatDao
 import com.shade.app.data.local.dao.ContactDao
@@ -26,7 +27,8 @@ object DatabaseModule {
                 context,
                 ShadeDatabase::class.java,
                 "shade_database"
-            ).fallbackToDestructiveMigration()
+            ).addMigrations(MIGRATION_4_5)
+            .fallbackToDestructiveMigration()
             .build()
     }
 

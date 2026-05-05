@@ -10,6 +10,8 @@ enum MessageType {
   IMAGE = 1;
   DELETE = 2;
   EDIT = 3;
+  AUDIO = 4;
+  FILE = 5;
 }
 
 enum ReceiptStatus {

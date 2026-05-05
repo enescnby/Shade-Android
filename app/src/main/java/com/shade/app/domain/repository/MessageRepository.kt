@@ -21,4 +21,6 @@ interface MessageRepository {
     suspend fun updateMessageContent(messageId: String, content: String)
     suspend fun countMediaMessages(chatId: String): Int
     suspend fun deleteMessagesOlderThan(chatId: String, cutoffMs: Long): Int
+    suspend fun updateAudioPath(messageId: String, path: String, durationMs: Long)
+    suspend fun updateFilePath(messageId: String, path: String)
 }

@@ -26,6 +26,12 @@ interface MessageDao{
     @Query("UPDATE messages SET imagePath = :path WHERE messageId = :messageId")
     suspend fun updateImagePath(messageId: String, path: String)
 
+    @Query("UPDATE messages SET audioPath = :path, audioDurationMs = :durationMs WHERE messageId = :messageId")
+    suspend fun updateAudioPath(messageId: String, path: String, durationMs: Long)
+
+    @Query("UPDATE messages SET filePath = :path WHERE messageId = :messageId")
+    suspend fun updateFilePath(messageId: String, path: String)
+
     @Query("SELECT status FROM messages WHERE messageId = :messageId")
     suspend fun getMessageStatus(messageId: String): MessageStatus?
 
