@@ -138,6 +138,15 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.10.0"))
     implementation("com.google.firebase:firebase-messaging")
     implementation("io.coil-kt:coil-compose:2.6.0")
+
+    // CameraX (web pairing QR scanner)
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+
+    // ML Kit Barcode (QR decoding)
+    implementation(libs.mlkit.barcode.scanning)
 }
 
 val rustDir = "${projectDir}/rust/shade-crypto"

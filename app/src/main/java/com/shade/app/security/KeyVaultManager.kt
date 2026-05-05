@@ -24,7 +24,7 @@ class KeyVaultManager @Inject constructor(
         val JWT_ACCESS_TOKEN = stringPreferencesKey("JWT_ACCESS_TOKEN")
         val SHADE_ID = stringPreferencesKey("SHADE_ID")
         val USER_ID = stringPreferencesKey("USER_ID")
-
+        val DEVICE_ID = stringPreferencesKey("DEVICE_ID")
         val FCM_TOKEN = stringPreferencesKey("FCM_TOKEN")
     }
 
@@ -56,6 +56,10 @@ class KeyVaultManager @Inject constructor(
     suspend fun saveAccessToken(token: String) = saveValue(Keys.JWT_ACCESS_TOKEN, token)
     suspend fun getAccessToken(): String? = getValue(Keys.JWT_ACCESS_TOKEN)
 
+    /** DataStore + decrypt olmadan — sadece anahtar var mı (açılış rotası için). */
+    suspend fun hasStoredAccessToken(): Boolean =
+        context.dataStore.data.map { it[Keys.JWT_ACCESS_TOKEN] != null }.first()
+
     suspend fun saveShadeId(shadeId: String) = saveValue(Keys.SHADE_ID, shadeId)
     suspend fun getShadeId(): String? = getValue(Keys.SHADE_ID)
 
@@ -65,6 +69,8 @@ class KeyVaultManager @Inject constructor(
     suspend fun saveFcmToken(token: String) = saveValue(Keys.FCM_TOKEN, token)
     suspend fun getFcmToken(): String? = getValue(Keys.FCM_TOKEN)
 
+    suspend fun saveDeviceId(deviceId: String) = saveValue(Keys.DEVICE_ID, deviceId)
+    suspend fun getDeviceId(): String? = getValue(Keys.DEVICE_ID)
     suspend fun clearVault() {
         context.dataStore.edit { it.clear() }
     }

@@ -2,19 +2,26 @@ package com.shade.app.data.remote.dto
 
 import com.google.gson.annotations.SerializedName
 
-data class UndeliveredMessageDto(
+data class InboxMessageDto(
     @SerializedName("message_id") val messageId: String,
     @SerializedName("sender_id") val senderId: String,
-    @SerializedName("sender_shade_id") val senderShadeId: String,
+    @SerializedName("receiver_id") val receiverId: String,
     @SerializedName("ciphertext") val ciphertext: String,
     @SerializedName("nonce") val nonce: String,
     @SerializedName("message_type") val messageType: Int,
-    @SerializedName("key_version") val keyVersion: Int,
-    @SerializedName("created_at") val createdAt: String
+    @SerializedName("timestamp") val timestamp: Long
 )
 
-data class UndeliveredMessageResponse(
-    @SerializedName("messages") val messages: List<UndeliveredMessageDto>
+data class InboxReceiptDto(
+    @SerializedName("message_id") val messageId: String,
+    @SerializedName("receiver_id") val receiverId: String,
+    @SerializedName("status") val status: String, // "DELIVERED" or "READ"
+    @SerializedName("timestamp") val timestamp: Long
+)
+
+data class InboxResponse(
+    @SerializedName("messages") val messages: List<InboxMessageDto> = emptyList(),
+    @SerializedName("receipts") val receipts: List<InboxReceiptDto> = emptyList()
 )
 
 data class ReceiptRequest(
@@ -24,14 +31,4 @@ data class ReceiptRequest(
 
 data class BatchReceiptRequest(
     @SerializedName("receipts") val receipts: List<ReceiptRequest>
-)
-
-data class PendingReceiptDto(
-    @SerializedName("message_id") val messageId: String,
-    @SerializedName("status") val status: String, // "DELIVERED" or "READ"
-    @SerializedName("timestamp") val timestamp: Long
-)
-
-data class PendingReceiptsResponse(
-    @SerializedName("receipts") val receipts: List<PendingReceiptDto>
 )

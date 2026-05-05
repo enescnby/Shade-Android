@@ -1,53 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
-    android:width="130dp"
-    android:height="120dp"
-    android:viewportWidth="130"
-    android:viewportHeight="120">
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="256"
+    android:viewportHeight="256">
 
-    <!-- Ghost body with gradient -->
-    <path android:pathData="M30,55 Q30,20 65,18 Q100,20 100,55 L100,105 Q92,97 85,105 Q78,113 72,105 Q65,97 58,105 Q51,113 44,105 Q37,97 30,105 Z">
+    <!-- Full-size brand mark for in-app UI (launcher drawable keeps extra inset for masks) -->
+    <path
+        android:pathData="M128,20 L210,60 V120 C210,180 170,220 128,236 C86,220 46,180 46,120 V60 Z">
         <aapt:attr name="android:fillColor">
             <gradient
-                android:type="linear"
-                android:startX="65"
-                android:startY="18"
-                android:endX="65"
-                android:endY="105">
-                <item android:color="#FF7B6FD4" android:offset="0.0" />
-                <item android:color="#FF4A3FA0" android:offset="1.0" />
+                android:startX="0"
+                android:startY="0"
+                android:endX="256"
+                android:endY="256"
+                android:type="linear">
+                <item android:offset="0" android:color="#FFA855F7"/>
+                <item android:offset="1" android:color="#FF6D28D9"/>
             </gradient>
         </aapt:attr>
     </path>
 
-    <!-- Eye white left -->
     <path
-        android:pathData="M43,56 a7,8 0 1,0 14,0 a7,8 0 1,0 -14,0 Z"
-        android:fillColor="#F0ECFF" />
+        android:pathData="M60,160 L40,200 L90,175 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="0"
+                android:startY="0"
+                android:endX="256"
+                android:endY="256"
+                android:type="linear">
+                <item android:offset="0" android:color="#FFA855F7"/>
+                <item android:offset="1" android:color="#FF6D28D9"/>
+            </gradient>
+        </aapt:attr>
+    </path>
 
-    <!-- Eye white right -->
     <path
-        android:pathData="M73,56 a7,8 0 1,0 14,0 a7,8 0 1,0 -14,0 Z"
-        android:fillColor="#F0ECFF" />
+        android:fillColor="#FF0B0B0F"
+        android:pathData="M128,110m-18,0a18,18 0,1 1,36 0a18,18 0,1 1,-36 0"/>
 
-    <!-- Pupil left -->
     <path
-        android:pathData="M47.5,57 a3.5,3.5 0 1,0 7,0 a3.5,3.5 0 1,0 -7,0 Z"
-        android:fillColor="#2A1F6B" />
-
-    <!-- Pupil right -->
-    <path
-        android:pathData="M77.5,57 a3.5,3.5 0 1,0 7,0 a3.5,3.5 0 1,0 -7,0 Z"
-        android:fillColor="#2A1F6B" />
-
-    <!-- Highlight left -->
-    <path
-        android:pathData="M51.3,55 a1.2,1.2 0 1,0 2.4,0 a1.2,1.2 0 1,0 -2.4,0 Z"
-        android:fillColor="#FAF9FF" />
-
-    <!-- Highlight right -->
-    <path
-        android:pathData="M81.3,55 a1.2,1.2 0 1,0 2.4,0 a1.2,1.2 0 1,0 -2.4,0 Z"
-        android:fillColor="#FAF9FF" />
-
+        android:fillColor="#FF0B0B0F"
+        android:pathData="M120,118 A8,8 0 0 1 128,110 A8,8 0 0 1 136,118 L136,142 A8,8 0 0 1 128,150 A8,8 0 0 1 120,142 L120,118 Z"/>
 </vector>

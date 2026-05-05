@@ -1,35 +1,31 @@
 package com.shade.app.ui.home
 
 import android.util.Log
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.ExitToApp
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.People
-import androidx.compose.material.icons.filled.QrCode
-import androidx.compose.material.icons.filled.QrCodeScanner
-import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.shade.app.R
 import com.shade.app.data.local.model.ChatWithContact
-import com.shade.app.ui.theme.*
+import com.shade.app.ui.theme.AccentPurple
+import com.shade.app.ui.theme.BubbleMine
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -40,13 +36,8 @@ private const val TAG = "SHADE_HOME"
 fun HomeScreen(
     onChatClick: (String, String) -> Unit,
     onNavigateToContacts: () -> Unit,
+    onSettingsClick: () -> Unit = {},
     onLogout: () -> Unit = {},
-    onSecurityAuditClick: () -> Unit = {},
-    onQrClick: () -> Unit = {},
-    onMyProfileClick: () -> Unit = {},
-    onQrScannerClick: () -> Unit = {},
-    isDarkTheme: Boolean = true,
-    onToggleTheme: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -64,142 +55,48 @@ fun HomeScreen(
         onDispose { Log.d(TAG, "HomeScreen kapandı") }
     }
 
-    // ── Dropdown menü durumu ──────────────────────────────────────────────────────
-    var showMenu by remember { mutableStateOf(false) }
+    val scheme = MaterialTheme.colorScheme
 
     Scaffold(
-        containerColor = RichBlack,
+        containerColor = scheme.background,
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        "Shade",
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = SurfaceDark
-                ),
-                actions = {
-                    // Kişiler — tek kalıcı ikon
-                    IconButton(onClick = {
-                        Log.d(TAG, "Kişiler butonuna tıklandı")
-                        onNavigateToContacts()
-                    }) {
-                        Icon(
-                            Icons.Default.People,
-                            contentDescription = "Kişiler",
-                            tint = TextPrimary
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.shade_logo),
+                            contentDescription = null,
+                            modifier = Modifier.size(30.dp)
+                        )
+                        Text(
+                            text = stringResource(R.string.app_name),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = scheme.onSurface
                         )
                     }
-
-                    // ⋮ Üç nokta — geri kalan her şey buradan
-                    Box {
-                        IconButton(onClick = { showMenu = true }) {
-                            Icon(
-                                Icons.Default.MoreVert,
-                                contentDescription = "Menü",
-                                tint = TextPrimary
-                            )
-                        }
-
-                        DropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false },
-                            modifier = Modifier.background(SurfaceElevated)
-                        ) {
-                            // Profilim
-                            DropdownMenuItem(
-                                text = { Text("Profilim", color = TextPrimary) },
-                                leadingIcon = {
-                                    Icon(Icons.Default.AccountCircle, contentDescription = null, tint = AccentPurple)
-                                },
-                                onClick = {
-                                    showMenu = false
-                                    Log.d(TAG, "Profilim tıklandı")
-                                    onMyProfileClick()
-                                }
-                            )
-
-                            // QR Kodum (göster)
-                            DropdownMenuItem(
-                                text = { Text("QR Kodum", color = TextPrimary) },
-                                leadingIcon = {
-                                    Icon(Icons.Default.QrCode, contentDescription = null, tint = AccentPurple)
-                                },
-                                onClick = {
-                                    showMenu = false
-                                    Log.d(TAG, "QR kod tıklandı")
-                                    onQrClick()
-                                }
-                            )
-
-                            // Web Bağlantısı (QR tara)
-                            DropdownMenuItem(
-                                text = { Text("Web'e Bağlan", color = TextPrimary) },
-                                leadingIcon = {
-                                    Icon(Icons.Default.QrCodeScanner, contentDescription = null, tint = AccentPurple)
-                                },
-                                onClick = {
-                                    showMenu = false
-                                    Log.d(TAG, "Web bağlantısı tıklandı")
-                                    onQrScannerClick()
-                                }
-                            )
-
-                            // Karanlık / Aydınlık Mod
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        if (isDarkTheme) "Aydınlık Mod" else "Karanlık Mod",
-                                        color = TextPrimary
-                                    )
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
-                                        contentDescription = null,
-                                        tint = AccentPurple
-                                    )
-                                },
-                                onClick = {
-                                    showMenu = false
-                                    Log.d(TAG, "Tema değiştirildi")
-                                    onToggleTheme()
-                                }
-                            )
-
-                            // Hesap Etkinliği
-                            DropdownMenuItem(
-                                text = { Text("Hesap Etkinliği", color = TextPrimary) },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Security, contentDescription = null, tint = AccentPurple)
-                                },
-                                onClick = {
-                                    showMenu = false
-                                    Log.d(TAG, "Güvenlik Günlüğü tıklandı")
-                                    onSecurityAuditClick()
-                                }
-                            )
-
-                            HorizontalDivider(color = OutlineMuted)
-
-                            // Çıkış Yap
-                            DropdownMenuItem(
-                                text = { Text("Çıkış Yap", color = Color(0xFFFF5252)) },
-                                leadingIcon = {
-                                    Icon(Icons.Default.ExitToApp, contentDescription = null, tint = Color(0xFFFF5252))
-                                },
-                                onClick = {
-                                    showMenu = false
-                                    Log.d(TAG, "Çıkış tıklandı")
-                                    viewModel.logout()
-                                }
-                            )
-                        }
+                },
+                actions = {
+                    IconButton(onClick = {
+                        Log.d(TAG, "Ayarlar butonuna tıklandı")
+                        onSettingsClick()
+                    }) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = stringResource(R.string.settings),
+                            tint = scheme.onSurface
+                        )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = scheme.surface,
+                    titleContentColor = scheme.onSurface,
+                    actionIconContentColor = scheme.onSurface,
+                    scrolledContainerColor = scheme.surface
+                )
             )
         },
         floatingActionButton = {
@@ -213,7 +110,10 @@ fun HomeScreen(
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.navigationBarsPadding()
             ) {
-                Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = "Yeni Mesaj")
+                Icon(
+                    Icons.AutoMirrored.Filled.Chat,
+                    contentDescription = stringResource(R.string.new_chat)
+                )
             }
         }
     ) { paddingValues ->
@@ -222,51 +122,46 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            if (uiState.isLoading && uiState.chats.isEmpty()) {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center),
-                    color = AccentPurple
-                )
-            } else if (uiState.chats.isEmpty()) {
-                Column(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.Chat,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = TextMuted
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Henüz mesajın yok",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = TextSecondary
-                    )
-                    Text(
-                        text = "Karanlıkta bir ışık yak!",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextMuted
+            when {
+                uiState.isLoading && uiState.chats.isEmpty() -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.align(Alignment.Center),
+                        color = AccentPurple,
+                        strokeWidth = 3.dp
                     )
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(vertical = 4.dp)
-                ) {
-                    items(uiState.chats, key = { it.displayName }) { chat ->
-                        ChatItem(
-                            chat = chat,
-                            onClick = {
-                                Log.d(TAG, "Sohbete tıklandı: ${chat.chat.chatId}")
-                                onChatClick(chat.chat.chatId, chat.displayName)
-                            },
-                            onDelete = {
-                                Log.d(TAG, "Sohbet silme: ${chat.chat.chatId}")
-                                viewModel.deleteChat(chat)
-                            }
-                        )
+                uiState.chats.isEmpty() -> {
+                    EmptyHomeState()
+                }
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(top = 12.dp, bottom = 88.dp)
+                    ) {
+                        item {
+                            Text(
+                                text = stringResource(R.string.home_inbox_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
+                                    .padding(bottom = 8.dp)
+                            )
+                        }
+                        items(
+                            items = uiState.chats,
+                            key = { it.chat.chatId }
+                        ) { chat ->
+                            ChatItem(
+                                chat = chat,
+                                onClick = {
+                                    Log.d(TAG, "Sohbete tıklandı: ${chat.chat.chatId}")
+                                    onChatClick(chat.chat.chatId, chat.displayName)
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -275,9 +170,10 @@ fun HomeScreen(
                 Snackbar(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(16.dp),
-                    containerColor = SurfaceElevated,
-                    contentColor = TextPrimary
+                        .padding(start = 16.dp, end = 16.dp, bottom = 96.dp),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(error)
                 }
@@ -287,15 +183,57 @@ fun HomeScreen(
 }
 
 @Composable
+private fun EmptyHomeState() {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = scheme.surfaceContainerHigh,
+            modifier = Modifier.size(88.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Chat,
+                    contentDescription = null,
+                    modifier = Modifier.size(40.dp),
+                    tint = AccentPurple.copy(alpha = 0.85f)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
+            text = stringResource(R.string.home_empty_title),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = scheme.onBackground,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = stringResource(R.string.home_empty_subtitle),
+            style = MaterialTheme.typography.bodyLarge,
+            color = scheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
 fun ChatItem(
     chat: ChatWithContact,
-    onClick: () -> Unit,
-    onDelete: () -> Unit
+    onClick: () -> Unit
 ) {
+    val scheme = MaterialTheme.colorScheme
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        onClick = onClick,
-        color = Color.Transparent
+        color = Color.Transparent,
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier
@@ -303,7 +241,6 @@ fun ChatItem(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Avatar with gradient
             Surface(
                 modifier = Modifier.size(52.dp),
                 shape = CircleShape,
@@ -311,7 +248,7 @@ fun ChatItem(
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
-                        text = chat.displayName.take(1).uppercase(),
+                        text = chat.displayName.take(1).uppercase(Locale.getDefault()),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -330,7 +267,8 @@ fun ChatItem(
                     Text(
                         text = chat.displayName,
                         style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                        color = scheme.onBackground,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
@@ -338,7 +276,7 @@ fun ChatItem(
                     Text(
                         text = formatTimestamp(chat.chat.lastMessageTimestamp),
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (chat.chat.unreadCount > 0) AccentPurple else TextMuted
+                        color = if (chat.chat.unreadCount > 0) AccentPurple else scheme.onSurfaceVariant
                     )
                 }
 
@@ -346,9 +284,10 @@ fun ChatItem(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = chat.chat.lastMessage ?: "Mesaj yok",
+                        text = chat.chat.lastMessage
+                            ?: stringResource(R.string.home_last_message_placeholder),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary,
+                        color = scheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
@@ -356,23 +295,32 @@ fun ChatItem(
 
                     if (chat.chat.unreadCount > 0) {
                         Spacer(modifier = Modifier.width(8.dp))
-                        Surface(
-                            shape = CircleShape,
-                            color = AccentPurple,
-                            modifier = Modifier.size(22.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = chat.chat.unreadCount.toString(),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
+                        UnreadBadge(count = chat.chat.unreadCount)
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun UnreadBadge(count: Int) {
+    val label = if (count > 99) "99+" else count.toString()
+    Surface(
+        shape = CircleShape,
+        color = AccentPurple,
+        modifier = Modifier.heightIn(min = 22.dp).defaultMinSize(minWidth = 22.dp)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
