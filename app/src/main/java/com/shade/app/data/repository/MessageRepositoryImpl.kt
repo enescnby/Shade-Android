@@ -82,12 +82,6 @@ class MessageRepositoryImpl @Inject constructor(
     override suspend fun countMediaMessages(chatId: String): Int =
         messageDao.countMediaMessages(chatId)
 
-    override suspend fun deleteMessagesOlderThan(chatId: String, cutoffMs: Long): Int =
-        messageDao.deleteMessagesOlderThan(chatId, cutoffMs)
-
-    override suspend fun deleteExpiredMessagesAfter(chatId: String, enabledAtMs: Long, cutoffMs: Long): Int =
-        messageDao.deleteExpiredMessagesAfter(chatId, enabledAtMs, cutoffMs)
-
     override suspend fun updateAudioPath(messageId: String, path: String, durationMs: Long) =
         messageDao.updateAudioPath(messageId, path, durationMs)
 

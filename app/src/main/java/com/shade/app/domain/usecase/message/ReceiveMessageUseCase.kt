@@ -7,6 +7,7 @@ import com.shade.app.crypto.MessageCryptoManager
 import com.shade.app.data.local.entities.ContactEntity
 import com.shade.app.data.local.entities.MessageEntity
 import com.shade.app.data.local.entities.MessageStatus
+import com.shade.app.domain.model.AudioMessageContent
 import com.shade.app.domain.model.ImageMessageContent
 import com.shade.app.domain.repository.ChatRepository
 import com.shade.app.domain.repository.ContactRepository
@@ -105,6 +106,22 @@ class ReceiveMessageUseCase @Inject constructor(
                         imagePath = null
                     )
                 }
+                MessageType.AUDIO -> {
+                    val durationMs = try {
+                        gson.fromJson(decryptedText, AudioMessageContent::class.java).durationMs
+                    } catch (e: Exception) { 0L }
+                    MessageEntity(
+                        messageId = payload.messageId,
+                        senderId = entitySenderId,
+                        receiverId = entityReceiverId,
+                        content = decryptedText,
+                        timestamp = payload.timestamp,
+                        status = entityStatus,
+                        messageType = com.shade.app.data.local.entities.MessageType.AUDIO,
+                        audioDurationMs = durationMs,
+                        audioPath = null  // indirilmedi henüz
+                    )
+                }
                 else -> {
                     MessageEntity(
                         messageId = payload.messageId,
@@ -121,7 +138,11 @@ class ReceiveMessageUseCase @Inject constructor(
             messageRepository.insertMessage(entity)
 
             val photoLabel = "📷 Fotoğraf"
-            val lastMessageText = if (payload.type == MessageType.IMAGE) photoLabel else decryptedText
+            val lastMessageText = when (payload.type) {
+                MessageType.IMAGE -> photoLabel
+                MessageType.AUDIO -> "🎤 Ses mesajı"
+                else -> decryptedText
+            }
             if (isOutgoingEcho) {
                 // Kendi gönderdiğimiz mesaj; unread count'u kabartmıyoruz, bildirim atmıyoruz,
                 // delivery receipt göndermiyoruz.

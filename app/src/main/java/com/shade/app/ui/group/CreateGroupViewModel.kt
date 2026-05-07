@@ -3,15 +3,24 @@ package com.shade.app.ui.group
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shade.app.data.local.entities.ChatEntity
+import com.shade.app.data.local.entities.ContactEntity
 import com.shade.app.domain.repository.ChatRepository
+import com.shade.app.domain.repository.ContactRepository
 import com.shade.app.domain.repository.GroupRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class CreateGroupUiState(
+    val contacts: List<ContactEntity> = emptyList(),
+    val selectedUserIds: Set<String> = emptySet(),
+    val searchQuery: String = "",
     val isLoading: Boolean = false,
     val error: String? = null,
     val createdGroupId: String? = null,
@@ -21,22 +30,45 @@ data class CreateGroupUiState(
 class CreateGroupViewModel @Inject constructor(
     private val groupRepository: GroupRepository,
     private val chatRepository: ChatRepository,
+    private val contactRepository: ContactRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CreateGroupUiState())
     val uiState: StateFlow<CreateGroupUiState> = _uiState
 
-    fun createGroup(name: String, memberIds: List<String>) {
+    init {
+        // Kişi listesini dinle
+        contactRepository.getAllContacts()
+            .onEach { contacts ->
+                _uiState.update { it.copy(contacts = contacts) }
+            }
+            .catch { }
+            .launchIn(viewModelScope)
+    }
+
+    fun onSearchQueryChange(query: String) {
+        _uiState.update { it.copy(searchQuery = query) }
+    }
+
+    fun toggleContact(userId: String) {
+        _uiState.update { state ->
+            val selected = state.selectedUserIds.toMutableSet()
+            if (userId in selected) selected.remove(userId) else selected.add(userId)
+            state.copy(selectedUserIds = selected)
+        }
+    }
+
+    fun createGroup(name: String) {
         if (name.isBlank()) {
-            _uiState.value = _uiState.value.copy(error = "Group name cannot be empty")
+            _uiState.update { it.copy(error = "Grup adı boş olamaz") }
             return
         }
+        val memberIds = _uiState.value.selectedUserIds.toList()
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            _uiState.update { it.copy(isLoading = true, error = null) }
             val result = groupRepository.createGroup(name.trim(), memberIds)
             result.fold(
                 onSuccess = { group ->
-                    // Ensure a chat row exists locally for this group
                     chatRepository.insertOrUpdateChat(
                         ChatEntity(
                             chatId = group.groupId,
@@ -46,16 +78,10 @@ class CreateGroupViewModel @Inject constructor(
                             groupName = group.name,
                         )
                     )
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        createdGroupId = group.groupId,
-                    )
+                    _uiState.update { it.copy(isLoading = false, createdGroupId = group.groupId) }
                 },
                 onFailure = { e ->
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        error = e.message ?: "Failed to create group",
-                    )
+                    _uiState.update { it.copy(isLoading = false, error = e.message ?: "Grup oluşturulamadı") }
                 }
             )
         }

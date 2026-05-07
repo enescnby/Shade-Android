@@ -59,26 +59,4 @@ interface MessageDao{
     @Query("SELECT COUNT(*) FROM messages WHERE (senderId = :chatId OR receiverId = :chatId) AND messageType = 'IMAGE' AND isDeleted = 0")
     suspend fun countMediaMessages(chatId: String): Int
 
-    /** Deletes non-deleted messages older than [cutoffMs] for the given chat.
-     *  Returns the number of rows deleted. */
-    @Query("""
-        DELETE FROM messages
-        WHERE (senderId = :chatId OR receiverId = :chatId)
-          AND timestamp < :cutoffMs
-          AND isDeleted = 0
-    """)
-    suspend fun deleteMessagesOlderThan(chatId: String, cutoffMs: Long): Int
-
-    /**
-     * Auto-delete için: sadece [enabledAtMs] sonrasında gelen ve [cutoffMs]'den
-     * eski mesajları siler. Özellik açılmadan önceki mesajlara dokunmaz.
-     */
-    @Query("""
-        DELETE FROM messages
-        WHERE (senderId = :chatId OR receiverId = :chatId)
-          AND timestamp >= :enabledAtMs
-          AND timestamp < :cutoffMs
-          AND isDeleted = 0
-    """)
-    suspend fun deleteExpiredMessagesAfter(chatId: String, enabledAtMs: Long, cutoffMs: Long): Int
 }

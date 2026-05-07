@@ -16,7 +16,7 @@ class GroupRepositoryImpl @Inject constructor(
     private val keyVaultManager: KeyVaultManager,
 ) : GroupRepository {
 
-    private fun token() = "Bearer ${keyVaultManager.getAccessToken()}"
+    private suspend fun token() = "Bearer ${keyVaultManager.getAccessToken()}"
 
     override suspend fun createGroup(name: String, memberIds: List<String>): Result<GroupResponse> =
         runCatching {

@@ -1,6 +1,7 @@
 package com.shade.app.di
 
 import android.content.Context
+import android.util.Log
 import com.shade.app.BuildConfig
 import com.shade.app.data.remote.api.AuditService
 import com.shade.app.data.remote.api.AuthService
@@ -10,6 +11,7 @@ import com.shade.app.data.remote.api.MessageService
 import com.shade.app.data.remote.api.TranslationService
 import com.shade.app.data.remote.api.UserService
 import com.shade.app.data.remote.api.WebSessionService
+import com.shade.app.data.remote.interceptor.TokenRefreshAuthenticator
 import com.shade.app.data.remote.websocket.ShadeWebSocketManager
 import com.shade.app.data.remote.websocket.ShadeWebSocketManagerImpl
 import com.shade.app.util.ConnectivityObserver
@@ -19,11 +21,11 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import okhttp3.CertificatePinner
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.time.Duration
-import javax.inject.Named
 import javax.inject.Singleton
 
 @Module
@@ -60,29 +62,39 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    @Named("translation")
-    fun provideTranslationRetrofit(): Retrofit {
-        return Retrofit.Builder()
-            .baseUrl("https://api.mymemory.translated.net/")
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-    }
-
-    @Provides
-    @Singleton
-    fun provideTranslationService(@Named("translation") retrofit: Retrofit): TranslationService {
+    fun provideTranslationService(retrofit: Retrofit): TranslationService {
         return retrofit.create(TranslationService::class.java)
     }
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient {
-        return OkHttpClient.Builder()
+    fun provideOkHttpClient(
+        tokenRefreshAuthenticator: TokenRefreshAuthenticator
+    ): OkHttpClient {
+        val builder = OkHttpClient.Builder()
+            .authenticator(tokenRefreshAuthenticator)
             .pingInterval(Duration.ofSeconds(30))
             .connectTimeout(Duration.ofSeconds(15))
             .readTimeout(Duration.ofSeconds(60))
             .writeTimeout(Duration.ofSeconds(60))
-            .build()
+
+        // Sertifika pinning — CERT_PIN_HASH doluysa etkinleştir
+        val certPinHash = BuildConfig.CERT_PIN_HASH
+        if (certPinHash.isNotBlank()) {
+            val apiHost = BuildConfig.API_URL
+                .removePrefix("https://")
+                .removePrefix("http://")
+                .substringBefore("/")
+            val pinner = CertificatePinner.Builder()
+                .add(apiHost, "sha256/$certPinHash")
+                .build()
+            builder.certificatePinner(pinner)
+            Log.i("NetworkModule", "Certificate pinning enabled for $apiHost")
+        } else {
+            Log.w("NetworkModule", "CERT_PIN_HASH not set — certificate pinning disabled")
+        }
+
+        return builder.build()
     }
 
     @Provides

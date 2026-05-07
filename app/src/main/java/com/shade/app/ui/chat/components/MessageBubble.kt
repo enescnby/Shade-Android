@@ -36,6 +36,7 @@ import com.shade.app.ui.util.UiText
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -316,13 +317,38 @@ fun AudioMessageBubble(
     onDownload: () -> Unit,
     timeString: String,
 ) {
+    val speedSteps = remember { listOf(1.0f, 1.5f, 2.0f, 0.5f, 0.75f) }
+    var speedIndex by remember { mutableStateOf(0) }
+    val playbackSpeed = speedSteps[speedIndex]
+    val speedLabel = when (playbackSpeed) {
+        0.5f  -> "0.5×"
+        0.75f -> "0.75×"
+        1.0f  -> "1×"
+        1.5f  -> "1.5×"
+        2.0f  -> "2×"
+        else  -> "1×"
+    }
+
     var isPlaying by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0f) }
+    var currentSec by remember { mutableStateOf(0) }
     val mediaPlayer = remember { android.media.MediaPlayer() }
     DisposableEffect(Unit) { onDispose { if (mediaPlayer.isPlaying) mediaPlayer.stop(); mediaPlayer.release() } }
 
+    // Progress bar'ı her 200ms'de güncelle
+    LaunchedEffect(isPlaying) {
+        while (isPlaying) {
+            val duration = mediaPlayer.duration.takeIf { it > 0 } ?: 1
+            val current = mediaPlayer.currentPosition
+            progress = current.toFloat() / duration
+            currentSec = current / 1000
+            delay(200)
+        }
+    }
+
     val durationSec = ((message.audioDurationMs ?: 0L) / 1000).toInt()
-    val durationText = "%d:%02d".format(durationSec / 60, durationSec % 60)
+    val displaySec = if (isPlaying) currentSec else durationSec
+    val durationText = "%d:%02d".format(displaySec / 60, displaySec % 60)
 
     Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -333,8 +359,13 @@ fun AudioMessageBubble(
                         else {
                             try {
                                 if (!mediaPlayer.isPlaying) {
-                                    mediaPlayer.reset(); mediaPlayer.setDataSource(message.audioPath); mediaPlayer.prepare()
-                                    mediaPlayer.setOnCompletionListener { isPlaying = false; progress = 0f }
+                                    mediaPlayer.reset()
+                                    mediaPlayer.setDataSource(message.audioPath)
+                                    mediaPlayer.prepare()
+                                    mediaPlayer.setOnCompletionListener { isPlaying = false; progress = 0f; currentSec = 0 }
+                                }
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                                    mediaPlayer.playbackParams = mediaPlayer.playbackParams.setSpeed(playbackSpeed)
                                 }
                                 mediaPlayer.start(); isPlaying = true
                             } catch (e: Exception) { android.util.Log.e("AudioBubble", "Playback error: ${e.message}") }
@@ -347,7 +378,31 @@ fun AudioMessageBubble(
                 Column(Modifier.weight(1f)) {
                     LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(3.dp), color = if (isMe) Color.White else AccentPurple, trackColor = if (isMe) Color.White.copy(0.3f) else SurfaceContainer)
                     Spacer(Modifier.height(4.dp))
-                    Text(durationText, style = MaterialTheme.typography.labelSmall, color = if (isMe) Color.White.copy(0.7f) else TextMuted, fontSize = 10.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(durationText, style = MaterialTheme.typography.labelSmall, color = if (isMe) Color.White.copy(0.7f) else TextMuted, fontSize = 10.sp)
+                    }
+                }
+                // Hız butonu — sadece ses dosyası indirildiyse göster
+                Surface(
+                    onClick = {
+                        speedIndex = (speedIndex + 1) % speedSteps.size
+                        if (isPlaying && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                            try { mediaPlayer.playbackParams = mediaPlayer.playbackParams.setSpeed(speedSteps[speedIndex]) }
+                            catch (e: Exception) { android.util.Log.e("AudioBubble", "Speed error: ${e.message}") }
+                        }
+                    },
+                    shape = RoundedCornerShape(6.dp),
+                    color = if (isMe) Color.White.copy(0.2f) else AccentPurple.copy(0.15f),
+                    modifier = Modifier.padding(start = 2.dp)
+                ) {
+                    Text(
+                        speedLabel,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isMe) Color.White else AccentPurple,
+                        fontSize = 11.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    )
                 }
             } else {
                 if (isDownloading) CircularProgressIndicator(modifier = Modifier.size(32.dp), color = if (isMe) Color.White else AccentPurple, strokeWidth = 2.dp)

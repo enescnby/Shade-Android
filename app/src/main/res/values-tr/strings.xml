@@ -85,6 +85,22 @@
     <string name="redeem_invite_hint">Davet kodu girin</string>
     <string name="redeem_invite_action">Kullan</string>
 
+    <!-- Ayarlar kalemleri -->
+    <string name="settings_profile">Profil</string>
+    <string name="settings_profile_subtitle">Profil bilgilerini yönet</string>
+    <string name="settings_contacts">Kişiler</string>
+    <string name="settings_contacts_subtitle">Kişilerini yönet ve yeni ekle</string>
+    <string name="settings_security_audit">Güvenlik Günlüğü</string>
+    <string name="settings_security_audit_subtitle">Hesap etkinliklerini görüntüle</string>
+    <string name="settings_web_connect">Web\'e Bağlan</string>
+    <string name="settings_web_connect_subtitle">Web\'deki QR kodu tara</string>
+    <string name="settings_logout">Çıkış Yap</string>
+    <string name="settings_logout_subtitle">Hesabından güvenli bir şekilde çık</string>
+    <string name="settings_language">Dil</string>
+    <string name="settings_language_subtitle">Uygulama görüntüleme dili</string>
+    <string name="lang_english">English</string>
+    <string name="lang_turkish">Türkçe</string>
+
     <!-- Bildirim stringleri -->
     <string name="notification_more_messages">+%d daha fazla mesaj</string>
     <string name="notification_summary">%1$d sohbetten %2$d mesaj</string>

@@ -162,6 +162,16 @@ fun ProfileScreen(
                         color = scheme.onSurface,
                         fontWeight = FontWeight.Medium
                     )
+                    // Display name (profile name set by the contact themselves)
+                    val profileName = contact?.profileName
+                    if (!profileName.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            profileName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = scheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 

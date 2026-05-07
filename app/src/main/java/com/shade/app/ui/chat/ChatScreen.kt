@@ -24,7 +24,6 @@ import com.shade.app.data.local.entities.MessageType
 import com.shade.app.ui.chat.components.*
 import com.shade.app.ui.theme.RichBlack
 import com.shade.app.ui.theme.TextSecondary
-import com.shade.app.worker.AutoDeleteScheduler
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,19 +43,10 @@ fun ChatScreen(
         }
     }
 
-    // ── Zamanlayıcı: otomatik silme ─────────────────────────────────────────
-    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
-    LaunchedEffect(uiState.autoDeleteMinutes, uiState.chatId) {
-        if (uiState.chatId.isNotBlank()) {
-            AutoDeleteScheduler.schedule(appContext, uiState.chatId, uiState.autoDeleteMinutes)
-        }
-    }
-
     // ── UI durumları ─────────────────────────────────────────────────────────
     var messageText by remember { mutableStateOf("") }
     var fullScreenImagePath by remember { mutableStateOf<String?>(null) }
     var showBgPicker by remember { mutableStateOf(false) }
-    var showAutoDeletePicker by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
     var pendingTranslationMessageId by remember { mutableStateOf<String?>(null) }
     var pendingTranslationContent by remember { mutableStateOf("") }
@@ -118,16 +108,6 @@ fun ChatScreen(
         )
     }
 
-    if (showAutoDeletePicker) {
-        AutoDeletePickerDialog(
-            currentMinutes = uiState.autoDeleteMinutes,
-            onMinutesSelected = { min ->
-                viewModel.setAutoDeleteMinutes(min)
-                AutoDeleteScheduler.schedule(appContext, uiState.chatId, min)
-            },
-            onDismiss = { showAutoDeletePicker = false }
-        )
-    }
 
     if (showLanguageDialog) {
         LanguagePickerDialog(
@@ -148,16 +128,15 @@ fun ChatScreen(
             ChatTopBar(
                 chatName = uiState.chatName,
                 chatId = uiState.chatId,
+                shadeId = uiState.contactShadeId,
                 lastSeenText = uiState.lastSeenText,
-                autoDeleteMinutes = uiState.autoDeleteMinutes,
                 isSearchActive = uiState.isSearchActive,
                 searchQuery = uiState.searchQuery,
                 onBackClick = onBackClick,
                 onProfileClick = onProfileClick,
                 onSearchToggle = { viewModel.toggleSearch() },
                 onSearchQueryChange = { viewModel.onSearchQueryChange(it) },
-                onShowBgPicker = { showBgPicker = true },
-                onShowAutoDeletePicker = { showAutoDeletePicker = true }
+                onShowBgPicker = { showBgPicker = true }
             )
         }
     ) { paddingValues ->

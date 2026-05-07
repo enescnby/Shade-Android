@@ -2,19 +2,25 @@ package com.shade.app
 
 import android.Manifest
 import android.app.ActivityManager
+import android.content.Context
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
+import java.util.Locale
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -35,6 +41,7 @@ import com.google.firebase.messaging.FirebaseMessaging
 import com.shade.app.data.preferences.ThemeMode
 import com.shade.app.data.preferences.ThemePreferenceRepository
 import com.shade.app.security.KeyVaultManager
+import com.shade.app.security.RootDetectionManager
 import kotlinx.coroutines.launch
 import com.shade.app.ui.audit.SecurityAuditScreen
 import com.shade.app.ui.auth.AuthScreen
@@ -43,6 +50,7 @@ import com.shade.app.ui.contacts.ContactsScreen
 import com.shade.app.ui.group.CreateGroupScreen
 import com.shade.app.ui.home.HomeScreen
 import com.shade.app.ui.navigation.Screen
+import com.shade.app.ui.myprofile.MyProfileScreen
 import com.shade.app.ui.settings.SettingsScreen
 import com.shade.app.ui.theme.ShadeTheme
 import com.shade.app.ui.user.ProfileScreen
@@ -59,6 +67,9 @@ class MainActivity : ComponentActivity() {
     lateinit var keyVaultManager: KeyVaultManager
 
     @Inject
+    lateinit var rootDetectionManager: RootDetectionManager
+
+    @Inject
     lateinit var themePreferenceRepository: ThemePreferenceRepository
 
     private val requestNotificationPermission =
@@ -69,6 +80,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyRecentAppsBranding()
+        applySavedLocale()   // ← kayıtlı dil ayarını uygula
         // Ekran görüntüsü ve ekran kaydını engelle (gizlilik uygulaması için zorunlu)
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         Log.d(TAG, "MainActivity onCreate")
@@ -77,6 +89,8 @@ class MainActivity : ComponentActivity() {
 
         val pendingChatId = intent?.getStringExtra("chatId")
         val pendingChatName = intent?.getStringExtra("chatName")
+
+        val isRooted = rootDetectionManager.isDeviceRooted(this)
 
         setContent {
             val themeMode by themePreferenceRepository.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
@@ -91,11 +105,17 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    AppNavigation(
-                        keyVaultManager = keyVaultManager,
-                        pendingChatId = pendingChatId,
-                        pendingChatName = pendingChatName
-                    )
+                    var rootWarningDismissed by remember { mutableStateOf(false) }
+
+                    if (isRooted && !rootWarningDismissed) {
+                        RootWarningDialog(onDismiss = { rootWarningDismissed = true })
+                    } else {
+                        AppNavigation(
+                            keyVaultManager = keyVaultManager,
+                            pendingChatId = pendingChatId,
+                            pendingChatName = pendingChatName
+                        )
+                    }
                 }
             }
         }
@@ -130,6 +150,19 @@ class MainActivity : ComponentActivity() {
                 requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
+    }
+
+    /** SharedPreferences'tan kaydedilmiş dili okur ve uygular. */
+    private fun applySavedLocale() {
+        val lang = getSharedPreferences("shade_prefs", Context.MODE_PRIVATE)
+            .getString("language", "en") ?: "en"
+        val locale = Locale(lang)
+        Locale.setDefault(locale)
+        val config = Configuration(resources.configuration)
+        config.setLocale(locale)
+        @Suppress("DEPRECATION")
+        resources.updateConfiguration(config, resources.displayMetrics)
+        Log.d(TAG, "Locale uygulandı: $lang")
     }
 
     /** Recent/overview küçük ikonunun güncel @mipmap/ic_launcher ile eşleşmesi için (splash ile uyumlu). */
@@ -245,6 +278,10 @@ fun AppNavigation(
                     Log.d(TAG, "Settings → geri")
                     navController.popBackStack()
                 },
+                onNavigateToProfile = {
+                    Log.d(TAG, "Settings → Profil")
+                    navController.navigate(Screen.MyProfile.route)
+                },
                 onNavigateToContacts = {
                     Log.d(TAG, "Settings → Kişiler")
                     navController.navigate(Screen.Contacts.route)
@@ -262,6 +299,16 @@ fun AppNavigation(
                     navController.navigate(Screen.Auth.route) {
                         popUpTo(0) { inclusive = true }
                     }
+                }
+            )
+        }
+
+        composable(Screen.MyProfile.route) {
+            Log.d(TAG, "→ MyProfile ekranı")
+            MyProfileScreen(
+                onBackClick = {
+                    Log.d(TAG, "MyProfile → geri")
+                    navController.popBackStack()
                 }
             )
         }
@@ -350,4 +397,29 @@ fun AppNavigation(
         }
         }
     }
+}
+
+/**
+ * Root tespiti uyarı diyalogu.
+ * Kullanıcı "Devam Et" seçerse uyarı kapatılır; uygulama çalışmaya devam eder.
+ * Güvenlik politikasına göre bu davranış "Çıkış yap" olarak da değiştirilebilir.
+ */
+@Composable
+private fun RootWarningDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = { /* zorunlu kapatmayı engelle */ },
+        title = { Text("⚠️ Güvenlik Uyarısı") },
+        text = {
+            Text(
+                "Bu cihaz root'lu veya değiştirilmiş olabilir. " +
+                "Şifrelenmiş verilerinizin güvenliği tehlikede olabilir. " +
+                "Resmi, güvenli bir cihaz kullanmanız önerilir."
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Riski Anlıyorum, Devam Et")
+            }
+        }
+    )
 }

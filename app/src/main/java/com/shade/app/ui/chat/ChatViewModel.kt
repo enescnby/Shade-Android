@@ -49,6 +49,7 @@ data class ChatUiState(
     val messages: List<MessageEntity> = emptyList(),
     val chatName: String = "",
     val chatId: String = "",
+    val contactShadeId: String? = null,
     val myShadeId: String = "",
     val initialScrollIndex: Int? = null,
     val firstUnreadMessageId: String? = null,
@@ -73,7 +74,6 @@ data class ChatUiState(
     val replyingToMessage: MessageEntity? = null,
     // Chat customisation
     val chatBackgroundColor: Int? = null,   // ARGB int, null = default
-    val autoDeleteMinutes: Int = 0,         // 0 = disabled
     val errorMessage: String? = null        // Snackbar mesajı — null = gösterme
 )
 
@@ -200,7 +200,12 @@ class ChatViewModel @Inject constructor(
         chatRepository.observeChatWithContact(chatId)
             .onEach { chatWithContact ->
                 chatWithContact?.let { details ->
-                    _uiState.update { it.copy(chatName = details.displayName) }
+                    _uiState.update {
+                        it.copy(
+                            chatName = details.displayName,
+                            contactShadeId = details.contact?.shadeId
+                        )
+                    }
                 }
             }
             .launchIn(viewModelScope)
@@ -244,25 +249,6 @@ class ChatViewModel @Inject constructor(
         chatPrefsRepository.getChatBackground(chatId)
             .onEach { color -> _uiState.update { it.copy(chatBackgroundColor = color) } }
             .launchIn(viewModelScope)
-
-        chatPrefsRepository.getAutoDeleteMinutes(chatId)
-            .onEach { min ->
-                _uiState.update { it.copy(autoDeleteMinutes = min) }
-                // Chat açıldığında mevcut süresi dolmuş mesajları hemen sil
-                if (min > 0) runAutoDeleteCleanup(min)
-            }
-            .launchIn(viewModelScope)
-    }
-
-    private fun runAutoDeleteCleanup(minutes: Int) {
-        viewModelScope.launch {
-            val enabledAt = chatPrefsRepository.getAutoDeleteEnabledAt(chatId)
-            if (enabledAt == 0L) return@launch   // henüz hiç etkinleştirilmemiş
-            val cutoff = System.currentTimeMillis() - minutes * 60_000L
-            // Sadece özellik açıldıktan SONRA gelen ve süresi dolmuş mesajları sil
-            val deleted = messageRepository.deleteExpiredMessagesAfter(chatId, enabledAt, cutoff)
-            if (deleted > 0) Log.d(TAG, "Otomatik silme: $deleted mesaj silindi ($minutes dk)")
-        }
     }
 
     fun sendMessage(content: String) {
@@ -417,16 +403,6 @@ class ChatViewModel @Inject constructor(
     fun setChatBackground(colorArgb: Int?) {
         viewModelScope.launch {
             chatPrefsRepository.setChatBackground(chatId, colorArgb)
-        }
-    }
-
-    // ── Auto-delete ────────────────────────────────────────────────────────────
-    fun setAutoDeleteMinutes(minutes: Int) {
-        viewModelScope.launch {
-            chatPrefsRepository.setAutoDeleteMinutes(chatId, minutes)
-            _uiState.update { it.copy(autoDeleteMinutes = minutes) }
-            // Ayar değişince mevcut mesajları hemen temizle
-            if (minutes > 0) runAutoDeleteCleanup(minutes)
         }
     }
 

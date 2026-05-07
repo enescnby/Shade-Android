@@ -21,8 +21,8 @@ import com.shade.app.ui.theme.*
 fun ChatTopBar(
     chatName: String,
     chatId: String,
+    shadeId: String?,
     lastSeenText: String,
-    autoDeleteMinutes: Int,
     isSearchActive: Boolean,
     searchQuery: String,
     onBackClick: () -> Unit,
@@ -30,7 +30,6 @@ fun ChatTopBar(
     onSearchToggle: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onShowBgPicker: () -> Unit,
-    onShowAutoDeletePicker: () -> Unit,
 ) {
     Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 4.dp) {
         if (isSearchActive) {
@@ -43,13 +42,12 @@ fun ChatTopBar(
             NormalBar(
                 chatName = chatName,
                 chatId = chatId,
+                shadeId = shadeId,
                 lastSeenText = lastSeenText,
-                autoDeleteMinutes = autoDeleteMinutes,
                 onBackClick = onBackClick,
                 onProfileClick = onProfileClick,
                 onSearchToggle = onSearchToggle,
-                onShowBgPicker = onShowBgPicker,
-                onShowAutoDeletePicker = onShowAutoDeletePicker
+                onShowBgPicker = onShowBgPicker
             )
         }
     }
@@ -95,13 +93,12 @@ private fun SearchBar(
 private fun NormalBar(
     chatName: String,
     chatId: String,
+    shadeId: String?,
     lastSeenText: String,
-    autoDeleteMinutes: Int,
     onBackClick: () -> Unit,
     onProfileClick: (String) -> Unit,
     onSearchToggle: () -> Unit,
     onShowBgPicker: () -> Unit,
-    onShowAutoDeletePicker: () -> Unit,
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
@@ -135,6 +132,14 @@ private fun NormalBar(
                 .clickable { onProfileClick(chatId) }
         ) {
             Text(chatName, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+            // Shade ID — always visible below the name if available
+            if (!shadeId.isNullOrBlank() && shadeId != chatName) {
+                Text(
+                    text = shadeId,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             val subtitle = lastSeenText.ifBlank { "Profil detayları" }
             Text(
                 text = subtitle,
@@ -160,14 +165,6 @@ private fun NormalBar(
                     text = { Text("Arkaplan Rengi", color = MaterialTheme.colorScheme.onSurface) },
                     leadingIcon = { Icon(Icons.Default.Palette, contentDescription = null, tint = AccentPurple) },
                     onClick = { showMenu = false; onShowBgPicker() }
-                )
-                DropdownMenuItem(
-                    text = {
-                        val label = if (autoDeleteMinutes == 0) "Otomatik Silme: Kapalı" else "Otomatik Silme: Açık"
-                        Text(label, color = MaterialTheme.colorScheme.onSurface)
-                    },
-                    leadingIcon = { Icon(Icons.Default.Timer, contentDescription = null, tint = AccentPurple) },
-                    onClick = { showMenu = false; onShowAutoDeletePicker() }
                 )
             }
         }

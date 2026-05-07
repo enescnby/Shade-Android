@@ -1,6 +1,9 @@
 import java.util.Properties
 import com.google.protobuf.gradle.*
 
+// Build çıktısını OneDrive dışına yönlendir → R.jar kilit sorunu çözülür
+layout.buildDirectory.set(file("C:/Dev/shade-build/app"))
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -33,18 +36,77 @@ android {
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
         }
+    }
 
-        val apiUrl = localProperties.getProperty("API_URL")
-        val wsUrl = localProperties.getProperty("WS_URL")
-        val geminiKey = localProperties.getProperty("GEMINI_API_KEY") ?: ""
-        buildConfigField("String", "API_URL", "\"$apiUrl\"")
-        buildConfigField("String", "WS_URL", "\"$wsUrl\"")
-        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiKey\"")
+    // ── Ortam flavor'ları ─────────────────────────────────────────────────────
+    flavorDimensions += "env"
+
+    productFlavors {
+        /**
+         * dev — geliştirici makinesi / Cloudflare tünel.
+         * Aynı anda prod apk ile yanyana kurulabilir (.dev suffix).
+         */
+        create("dev") {
+            dimension = "env"
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+
+            val apiUrl    = localProperties.getProperty("DEV_API_URL")      ?: ""
+            val wsUrl     = localProperties.getProperty("DEV_WS_URL")       ?: ""
+            val certPin   = localProperties.getProperty("DEV_CERT_PIN_HASH")?: ""
+
+            buildConfigField("String",  "API_URL",       "\"$apiUrl\"")
+            buildConfigField("String",  "WS_URL",        "\"$wsUrl\"")
+            buildConfigField("String",  "CERT_PIN_HASH", "\"$certPin\"")
+            buildConfigField("String",  "ENVIRONMENT",   "\"dev\"")
+            buildConfigField("Boolean", "STRICT_LOGGING","true")
+        }
+
+        /**
+         * staging — QA / test sunucusu.
+         * Prod ile aynı anda kurulabilir (.staging suffix).
+         */
+        create("staging") {
+            dimension = "env"
+            applicationIdSuffix = ".staging"
+            versionNameSuffix = "-staging"
+
+            val apiUrl  = localProperties.getProperty("STAGING_API_URL")       ?: ""
+            val wsUrl   = localProperties.getProperty("STAGING_WS_URL")        ?: ""
+            val certPin = localProperties.getProperty("STAGING_CERT_PIN_HASH") ?: ""
+
+            buildConfigField("String",  "API_URL",       "\"$apiUrl\"")
+            buildConfigField("String",  "WS_URL",        "\"$wsUrl\"")
+            buildConfigField("String",  "CERT_PIN_HASH", "\"$certPin\"")
+            buildConfigField("String",  "ENVIRONMENT",   "\"staging\"")
+            buildConfigField("Boolean", "STRICT_LOGGING","false")
+        }
+
+        /**
+         * prod — canlı sunucu. Suffix yok.
+         */
+        create("prod") {
+            dimension = "env"
+
+            val apiUrl  = localProperties.getProperty("PROD_API_URL")       ?: ""
+            val wsUrl   = localProperties.getProperty("PROD_WS_URL")        ?: ""
+            val certPin = localProperties.getProperty("PROD_CERT_PIN_HASH") ?: ""
+
+            buildConfigField("String",  "API_URL",       "\"$apiUrl\"")
+            buildConfigField("String",  "WS_URL",        "\"$wsUrl\"")
+            buildConfigField("String",  "CERT_PIN_HASH", "\"$certPin\"")
+            buildConfigField("String",  "ENVIRONMENT",   "\"prod\"")
+            buildConfigField("Boolean", "STRICT_LOGGING","false")
+        }
     }
 
     buildTypes {
-        release {
+        debug {
+            // debug'da minify kapalı — hızlı iterasyon için
             isMinifyEnabled = false
+        }
+        release {
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -62,6 +124,13 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    testOptions {
+        unitTests {
+            // android.util.Log gibi Android stub'larının "not mocked" throw etmesini engelle
+            isReturnDefaultValues = true
+        }
     }
 
     packaging {
@@ -122,6 +191,10 @@ dependencies {
     implementation(libs.protobuf.kotlin.lite)
 
     testImplementation(libs.junit)
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.mockito.kotlin)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.truth)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
@@ -147,6 +220,11 @@ dependencies {
 
     // ML Kit Barcode (QR decoding)
     implementation(libs.mlkit.barcode.scanning)
+
+    // Paging 3 — sonsuz kaydırma / büyük mesaj listeleri
+    implementation(libs.androidx.paging.runtime)
+    implementation(libs.androidx.paging.compose)
+    implementation(libs.androidx.room.paging)
 }
 
 val rustDir = "${projectDir}/rust/shade-crypto"
@@ -173,6 +251,10 @@ tasks.register<Exec>("buildRustRelease") {
 }
 
 afterEvaluate {
-    tasks.named("mergeDebugNativeLibs") { dependsOn("buildRustDebug") }
-    tasks.named("mergeReleaseNativeLibs") { dependsOn("buildRustRelease") }
+    // Flavor × buildType kombinasyonları için Rust build bağlantısı
+    android.applicationVariants.configureEach {
+        val variantName = name.replaceFirstChar { it.uppercase() }
+        val rustTask = if (buildType.name == "release") "buildRustRelease" else "buildRustDebug"
+        tasks.findByName("merge${variantName}NativeLibs")?.dependsOn(rustTask)
+    }
 }

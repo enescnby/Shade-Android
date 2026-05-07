@@ -85,6 +85,22 @@
     <string name="redeem_invite_hint">Enter invite code</string>
     <string name="redeem_invite_action">Redeem</string>
 
+    <!-- Settings items -->
+    <string name="settings_profile">Profile</string>
+    <string name="settings_profile_subtitle">Manage your profile information</string>
+    <string name="settings_contacts">Contacts</string>
+    <string name="settings_contacts_subtitle">Manage and add contacts</string>
+    <string name="settings_security_audit">Security Audit</string>
+    <string name="settings_security_audit_subtitle">View account activities</string>
+    <string name="settings_web_connect">Connect to Web</string>
+    <string name="settings_web_connect_subtitle">Scan the QR code on the website</string>
+    <string name="settings_logout">Log Out</string>
+    <string name="settings_logout_subtitle">Sign out of your account safely</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_subtitle">App display language</string>
+    <string name="lang_english">English</string>
+    <string name="lang_turkish">Türkçe</string>
+
     <!-- Notification strings (format args) -->
     <string name="notification_more_messages">+%d more messages</string>
     <string name="notification_summary">%1$d chats, %2$d messages</string>

@@ -28,14 +28,6 @@ private val BACKGROUND_OPTIONS = listOf(
     0xFF0A0A0A.toInt() to "Jet Siyahı"
 )
 
-val AUTO_DELETE_OPTIONS = listOf(
-    0 to "Kapalı",
-    1 to "1 dakika",
-    5 to "5 dakika",
-    60 to "1 saat",
-    1440 to "24 saat",
-    10080 to "7 gün"
-)
 
 private val LANGUAGES = listOf(
     "🇬🇧 İngilizce" to "en",
@@ -93,41 +85,6 @@ fun BackgroundPickerDialog(
     )
 }
 
-/** Otomatik silme süresi seçici dialog. */
-@Composable
-fun AutoDeletePickerDialog(
-    currentMinutes: Int,
-    onMinutesSelected: (Int) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = SurfaceDark,
-        title = { Text("Otomatik Silme", color = TextPrimary) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                AUTO_DELETE_OPTIONS.forEach { (min, label) ->
-                    TextButton(
-                        onClick = { onMinutesSelected(min); onDismiss() },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Text(label, color = if (currentMinutes == min) AccentPurple else TextPrimary)
-                            if (currentMinutes == min) {
-                                Spacer(Modifier.weight(1f))
-                                Icon(Icons.Default.Check, null, tint = AccentPurple, modifier = Modifier.size(16.dp))
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("İptal", color = TextMuted) }
-        }
-    )
-}
 
 /** Çeviri dili seçici dialog. */
 @Composable

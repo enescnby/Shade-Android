@@ -23,9 +23,11 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,6 +39,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import android.app.Activity
+import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -45,6 +49,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -61,6 +66,7 @@ import com.shade.app.ui.theme.ErrorRed
 @Composable
 fun SettingsScreen(
     onNavigateBack: () -> Unit,
+    onNavigateToProfile: () -> Unit,
     onNavigateToContacts: () -> Unit,
     onSecurityAuditClick: () -> Unit,
     onWebPairingClick: () -> Unit,
@@ -74,8 +80,17 @@ fun SettingsScreen(
         if (loggedOut) onLogout()
     }
 
+    val context = LocalContext.current
     val scheme = MaterialTheme.colorScheme
     var appearanceExpanded by remember { mutableStateOf(false) }
+    var languageExpanded by remember { mutableStateOf(false) }
+
+    // Seçili dil — SharedPreferences'tan okunur
+    var currentLang by remember {
+        val saved = context.getSharedPreferences("shade_prefs", Context.MODE_PRIVATE)
+            .getString("language", "en") ?: "en"
+        mutableStateOf(saved)
+    }
 
     Scaffold(
         containerColor = scheme.background,
@@ -151,29 +166,120 @@ fun SettingsScreen(
                     color = scheme.outlineVariant
                 )
             }
+            // ── Profil ────────────────────────────────────────────────────────
             item {
                 SettingsItem(
-                    title = "Kişiler",
-                    subtitle = "Kişilerini yönet ve yeni ekle",
+                    title = stringResource(R.string.settings_profile),
+                    subtitle = stringResource(R.string.settings_profile_subtitle),
+                    icon = Icons.Default.Person,
+                    onClick = onNavigateToProfile
+                )
+            }
+            item {
+                SettingsItem(
+                    title = stringResource(R.string.settings_contacts),
+                    subtitle = stringResource(R.string.settings_contacts_subtitle),
                     icon = Icons.Default.People,
                     onClick = onNavigateToContacts
                 )
             }
             item {
                 SettingsItem(
-                    title = "Güvenlik Günlüğü",
-                    subtitle = "Hesap etkinliklerini görüntüle",
+                    title = stringResource(R.string.settings_security_audit),
+                    subtitle = stringResource(R.string.settings_security_audit_subtitle),
                     icon = Icons.Default.Security,
                     onClick = onSecurityAuditClick
                 )
             }
             item {
                 SettingsItem(
-                    title = "Web'e Bağlan",
-                    subtitle = "Web'deki QR kodu tara",
+                    title = stringResource(R.string.settings_web_connect),
+                    subtitle = stringResource(R.string.settings_web_connect_subtitle),
                     icon = Icons.Default.QrCodeScanner,
                     onClick = onWebPairingClick
                 )
+            }
+            // ── Dil seçici ────────────────────────────────────────────────────
+            item {
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 8.dp),
+                    color = scheme.outlineVariant
+                )
+            }
+            item {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { languageExpanded = !languageExpanded }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Language,
+                            contentDescription = null,
+                            tint = AccentPurple,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.settings_language),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = scheme.onSurface,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = if (currentLang == "tr") stringResource(R.string.lang_turkish)
+                                       else stringResource(R.string.lang_english),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = scheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            imageVector = if (languageExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = null,
+                            tint = scheme.onSurfaceVariant,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    AnimatedVisibility(
+                        visible = languageExpanded,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        Column {
+                            ThemeAppearanceRow(
+                                title = stringResource(R.string.lang_english),
+                                subtitle = "English",
+                                icon = Icons.Default.Language,
+                                selected = currentLang != "tr",
+                                onClick = {
+                                    context.getSharedPreferences("shade_prefs", Context.MODE_PRIVATE)
+                                        .edit().putString("language", "en").apply()
+                                    currentLang = "en"
+                                    languageExpanded = false
+                                    (context as? Activity)?.recreate()
+                                },
+                                modifier = Modifier.padding(start = 24.dp)
+                            )
+                            ThemeAppearanceRow(
+                                title = stringResource(R.string.lang_turkish),
+                                subtitle = "Türkçe",
+                                icon = Icons.Default.Language,
+                                selected = currentLang == "tr",
+                                onClick = {
+                                    context.getSharedPreferences("shade_prefs", Context.MODE_PRIVATE)
+                                        .edit().putString("language", "tr").apply()
+                                    currentLang = "tr"
+                                    languageExpanded = false
+                                    (context as? Activity)?.recreate()
+                                },
+                                modifier = Modifier.padding(start = 24.dp)
+                            )
+                        }
+                    }
+                }
             }
             item {
                 HorizontalDivider(
@@ -183,8 +289,8 @@ fun SettingsScreen(
             }
             item {
                 SettingsItem(
-                    title = "Çıkış Yap",
-                    subtitle = "Hesabından güvenli bir şekilde çık",
+                    title = stringResource(R.string.settings_logout),
+                    subtitle = stringResource(R.string.settings_logout_subtitle),
                     icon = Icons.Default.ExitToApp,
                     iconTint = ErrorRed,
                     titleColor = ErrorRed,

@@ -15,6 +15,7 @@ import com.shade.app.proto.MessageType
 import com.shade.app.proto.encryptedPayload
 import com.shade.app.proto.webSocketMessage
 import com.shade.app.security.KeyVaultManager
+import kotlinx.coroutines.delay
 import org.bouncycastle.util.encoders.Hex
 import java.io.File
 import java.util.UUID
@@ -80,7 +81,14 @@ class SendAudioMessageUseCase @Inject constructor(
                 }
             }
 
-            val isSent = messageRepository.sendWebsocketMessage(socketMsg)
+            // WS gönderimi: başarısız olursa 1 kez retry (upload sırasında WS kopmuş olabilir)
+            var isSent = messageRepository.sendWebsocketMessage(socketMsg)
+            if (!isSent) {
+                Log.w("SendAudio", "WS send failed, 1.5s sonra retry deneniyor...")
+                delay(1500)
+                isSent = messageRepository.sendWebsocketMessage(socketMsg)
+                Log.d("SendAudio", "Retry sonucu: $isSent")
+            }
 
             // Sesi yerel dosyaya kaydet
             val audioDir = File(audioFile.parentFile, "audio").also { it.mkdirs() }

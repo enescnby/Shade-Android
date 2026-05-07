@@ -74,7 +74,7 @@ class SendGroupMessageUseCase @Inject constructor(
                     this.nonce    = ByteString.copyFrom(Hex.decode(nonceHex))
                     timestamp     = ts
                     type          = MessageType.TEXT
-                    groupId       = groupId
+                    this.groupId  = groupId
                 }
             }
 

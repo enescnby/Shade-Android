@@ -87,14 +87,11 @@ class ShadeWebSocketManagerImpl @Inject constructor(
                 return@launch
             }
 
-            val socketUrl = if (url.contains("?")) {
-                "$url&token=$token"
-            } else {
-                "$url?token=$token"
-            }
-
-            Log.d(TAG, "Connecting: $socketUrl")
-            val request = Request.Builder().url(socketUrl).build()
+            Log.d(TAG, "Connecting to WebSocket (token sent via header)")
+            val request = Request.Builder()
+                .url(url)
+                .header("Authorization", "Bearer $token")
+                .build()
             _connectionState.value = ConnectionState.CONNECTING
             webSocket = client.newWebSocket(request, this@ShadeWebSocketManagerImpl)
         }

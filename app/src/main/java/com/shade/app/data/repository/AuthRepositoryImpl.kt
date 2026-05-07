@@ -77,7 +77,15 @@ class AuthRepositoryImpl @Inject constructor(
             )
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
-                Result.success(AuthResult(body.shadeId, body.userId, body.accessToken, deviceId = body.deviceId))
+                Result.success(
+                    AuthResult(
+                        shadeId = body.shadeId,
+                        userId = body.userId,
+                        accessToken = body.accessToken,
+                        refreshToken = body.refreshToken,
+                        deviceId = body.deviceId
+                    )
+                )
             } else {
                 Result.failure(Exception("Verification failed"))
             }
@@ -89,8 +97,8 @@ class AuthRepositoryImpl @Inject constructor(
     override suspend fun saveSession(authResult: AuthResult) {
         keyVaultManager.saveShadeId(authResult.shadeId)
         authResult.userId?.let { keyVaultManager.saveUserId(it) }
-
         authResult.accessToken?.let { keyVaultManager.saveAccessToken(it) }
+        authResult.refreshToken?.let { keyVaultManager.saveRefreshToken(it) }
         authResult.idPrivateKey?.let { keyVaultManager.saveEd25519PrivateKey(it) }
         authResult.encPrivateKey?.let { keyVaultManager.saveX25519PrivateKey(it) }
         authResult.deviceId?.let { keyVaultManager.saveDeviceId(it) }
