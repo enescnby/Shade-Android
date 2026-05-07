@@ -1,5 +1,8 @@
 package com.shade.app.data.repository
 
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
 import com.shade.app.data.local.dao.MessageDao
 import com.shade.app.data.local.entities.MessageEntity
 import com.shade.app.data.local.entities.MessageStatus
@@ -21,6 +24,17 @@ class MessageRepositoryImpl @Inject constructor(
     override suspend fun insertMessage(message: MessageEntity) = messageDao.insertMessage(message)
 
     override fun getMessagesForChat(chatId: String): Flow<List<MessageEntity>> = messageDao.getMessagesForChat(chatId)
+
+    override fun getMessagesForChatPaged(chatId: String): Flow<PagingData<MessageEntity>> =
+        Pager(
+            config = PagingConfig(
+                pageSize = 40,
+                prefetchDistance = 10,
+                enablePlaceholders = false,
+                initialLoadSize = 60  // İlk açılışta biraz daha fazla yükle
+            ),
+            pagingSourceFactory = { messageDao.getMessagesForChatPaged(chatId) }
+        ).flow
 
     override suspend fun getUnreadMessages(chatId: String): List<MessageEntity> {
         return messageDao.getUnreadMessages(chatId)
@@ -70,6 +84,9 @@ class MessageRepositoryImpl @Inject constructor(
 
     override suspend fun deleteMessagesOlderThan(chatId: String, cutoffMs: Long): Int =
         messageDao.deleteMessagesOlderThan(chatId, cutoffMs)
+
+    override suspend fun deleteExpiredMessagesAfter(chatId: String, enabledAtMs: Long, cutoffMs: Long): Int =
+        messageDao.deleteExpiredMessagesAfter(chatId, enabledAtMs, cutoffMs)
 
     override suspend fun updateAudioPath(messageId: String, path: String, durationMs: Long) =
         messageDao.updateAudioPath(messageId, path, durationMs)

@@ -31,9 +31,16 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
     }
 }
 
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // Kişinin kendi profilinde belirlediği görünen adı saklamak için yeni kolon
+        database.execSQL("ALTER TABLE contacts ADD COLUMN profileName TEXT")
+    }
+}
+
 @Database(
     entities = [MessageEntity::class, ContactEntity::class, ChatEntity::class],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 @TypeConverters(RoomConverters::class)

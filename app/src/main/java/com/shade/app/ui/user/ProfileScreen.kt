@@ -130,7 +130,7 @@ fun ProfileScreen(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
-                            text = (contact?.savedName ?: contact?.shadeId ?: "?").take(1).uppercase(),
+                            text = (contact?.savedName ?: contact?.profileName ?: contact?.shadeId ?: "?").take(1).uppercase(),
                             style = MaterialTheme.typography.displayMedium,
                             fontWeight = FontWeight.Bold,
                             color = AccentPurple

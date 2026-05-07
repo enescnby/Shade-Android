@@ -13,5 +13,6 @@ data class ChatWithContact(
     ) val contact: ContactEntity?
 ) {
     val displayName: String
-        get() = contact?.savedName ?: chat.chatId
+        // Öncelik: kullanıcının kaydettiği özel isim → kişinin kendi profil adı → shadeId
+        get() = contact?.savedName ?: contact?.profileName ?: contact?.shadeId ?: chat.chatId
 }

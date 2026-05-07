@@ -55,7 +55,9 @@ class ProfileViewModel @Inject constructor(
 
     private fun loadAll() {
         viewModelScope.launch {
-            val contact = contactRepository.getContactByShadeId(shadeId)
+            // getOrFetchContact: DB'de varsa profileName'i tazeler, yoksa yeni çeker
+            val contact = contactRepository.getOrFetchContact(shadeId)
+                ?: contactRepository.getContactByShadeId(shadeId)
             contactState.value = contact
             _uiState.update { it.copy(contact = contact, isLoading = false) }
         }

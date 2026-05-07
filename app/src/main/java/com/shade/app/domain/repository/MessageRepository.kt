@@ -1,5 +1,6 @@
 package com.shade.app.domain.repository
 
+import androidx.paging.PagingData
 import com.shade.app.data.local.entities.MessageEntity
 import com.shade.app.data.local.entities.MessageStatus
 import com.shade.app.proto.WebSocketMessage
@@ -8,6 +9,9 @@ import kotlinx.coroutines.flow.Flow
 interface MessageRepository {
     suspend fun insertMessage(message: MessageEntity)
     fun getMessagesForChat(chatId: String): Flow<List<MessageEntity>>
+
+    /** Sayfalı mesaj akışı — büyük sohbetler için bellek tasarruflu yükleme. */
+    fun getMessagesForChatPaged(chatId: String): Flow<PagingData<MessageEntity>>
     suspend fun getUnreadMessages(chatId: String): List<MessageEntity>
     suspend fun updateMessageStatus(messageId: String, status: MessageStatus)
     suspend fun sendWebsocketMessage(message: WebSocketMessage): Boolean
@@ -21,6 +25,7 @@ interface MessageRepository {
     suspend fun updateMessageContent(messageId: String, content: String)
     suspend fun countMediaMessages(chatId: String): Int
     suspend fun deleteMessagesOlderThan(chatId: String, cutoffMs: Long): Int
+    suspend fun deleteExpiredMessagesAfter(chatId: String, enabledAtMs: Long, cutoffMs: Long): Int
     suspend fun updateAudioPath(messageId: String, path: String, durationMs: Long)
     suspend fun updateFilePath(messageId: String, path: String)
 }

@@ -11,6 +11,7 @@ import com.shade.app.data.remote.api.UserService
 import com.shade.app.data.preferences.TranslationConsentRepository
 import com.shade.app.data.repository.TranslationRepository
 import com.shade.app.domain.repository.ChatRepository
+import com.shade.app.domain.repository.ContactRepository
 import com.shade.app.domain.repository.MessageRepository
 import com.shade.app.data.repository.ChatPrefsRepository
 import com.shade.app.domain.usecase.message.DeleteMessageForEveryoneUseCase
@@ -25,8 +26,14 @@ import com.shade.app.domain.usecase.message.SendMessageUseCase
 import java.io.File
 import com.shade.app.security.KeyVaultManager
 import com.shade.app.util.ActiveChatTracker
+import com.shade.app.util.AppError
+import com.shade.app.util.ErrorReporter
 import com.shade.app.util.NotificationHelper
+import com.shade.app.util.toAppError
+import com.shade.app.util.toUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.catch
@@ -66,7 +73,8 @@ data class ChatUiState(
     val replyingToMessage: MessageEntity? = null,
     // Chat customisation
     val chatBackgroundColor: Int? = null,   // ARGB int, null = default
-    val autoDeleteMinutes: Int = 0          // 0 = disabled
+    val autoDeleteMinutes: Int = 0,         // 0 = disabled
+    val errorMessage: String? = null        // Snackbar mesajı — null = gösterme
 )
 
 @HiltViewModel
@@ -82,6 +90,7 @@ class ChatViewModel @Inject constructor(
     private val sendFileMessageUseCase: SendFileMessageUseCase,
     private val downloadFileUseCase: DownloadFileUseCase,
     private val chatRepository: ChatRepository,
+    private val contactRepository: ContactRepository,
     private val keyVaultManager: KeyVaultManager,
     private val userService: UserService,
     private val translationRepository: TranslationRepository,
@@ -89,6 +98,7 @@ class ChatViewModel @Inject constructor(
     private val activeChatTracker: ActiveChatTracker,
     private val notificationHelper: NotificationHelper,
     private val chatPrefsRepository: ChatPrefsRepository,
+    private val errorReporter: ErrorReporter,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -106,6 +116,18 @@ class ChatViewModel @Inject constructor(
         )
     )
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
+
+    /**
+     * Sayfalı mesaj akışı — büyük sohbetlerde RAM kullanımını sınırlar.
+     * [cachedIn] ile ViewModel yeniden başlatılsa da cache'den beslenir.
+     *
+     * NOT: Şu an [ChatUiState.messages] ile paralel çalışır.
+     * Arama, okunmamış sayacı gibi feature'lar hâlâ [messages]'ı kullanır.
+     * İleride [messages] tamamen kaldırılıp yalnızca sayfalı veri kullanılabilir.
+     */
+    val pagedMessages: Flow<PagingData<MessageEntity>> =
+        messageRepository.getMessagesForChatPaged(chatId)
+            .cachedIn(viewModelScope)
 
     val translationDisclaimerAccepted: StateFlow<Boolean> =
         translationConsentRepository.disclaimerAccepted.stateIn(
@@ -129,6 +151,8 @@ class ChatViewModel @Inject constructor(
         fetchUserStatus()
         observeChatPrefs()
         viewModelScope.launch { markChatAsReadUseCase(chatId) }
+        // Arka planda profil adını tazele: Tel1 adını değiştirdiyse Tel2 anında görsün
+        viewModelScope.launch { contactRepository.getOrFetchContact(chatId) }
     }
 
     override fun onCleared() {
@@ -210,7 +234,8 @@ class ChatViewModel @Inject constructor(
                     Log.d(TAG, "Son görülme: $text")
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Son görülme alınamadı: ${e.message}")
+                errorReporter.report(TAG, "Son görülme alınamadı", e)
+                // Non-fatal: kullanıcıya gösterme, sadece raporla
             }
         }
     }
@@ -231,8 +256,11 @@ class ChatViewModel @Inject constructor(
 
     private fun runAutoDeleteCleanup(minutes: Int) {
         viewModelScope.launch {
+            val enabledAt = chatPrefsRepository.getAutoDeleteEnabledAt(chatId)
+            if (enabledAt == 0L) return@launch   // henüz hiç etkinleştirilmemiş
             val cutoff = System.currentTimeMillis() - minutes * 60_000L
-            val deleted = messageRepository.deleteMessagesOlderThan(chatId, cutoff)
+            // Sadece özellik açıldıktan SONRA gelen ve süresi dolmuş mesajları sil
+            val deleted = messageRepository.deleteExpiredMessagesAfter(chatId, enabledAt, cutoff)
             if (deleted > 0) Log.d(TAG, "Otomatik silme: $deleted mesaj silindi ($minutes dk)")
         }
     }
@@ -263,9 +291,19 @@ class ChatViewModel @Inject constructor(
 
     fun sendAudio(audioFile: File, durationMs: Long) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isSendingAudio = true) }
-            sendAudioMessageUseCase(receiverShadeId = chatId, audioFile = audioFile, durationMs = durationMs)
+            _uiState.update { it.copy(isSendingAudio = true, errorMessage = null) }
+            val result = sendAudioMessageUseCase(
+                receiverShadeId = chatId,
+                audioFile = audioFile,
+                durationMs = durationMs
+            )
             _uiState.update { it.copy(isSendingAudio = false) }
+            result.onFailure { e ->
+                Log.e(TAG, "Ses mesajı gönderilemedi: ${e.message}", e)
+                _uiState.update {
+                    it.copy(errorMessage = "Ses mesajı gönderilemedi: ${e.message ?: "Bilinmeyen hata"}")
+                }
+            }
         }
     }
 
@@ -300,7 +338,8 @@ class ChatViewModel @Inject constructor(
                 _uiState.update { it.copy(downloadProgress = progress) }
             }
             result.onFailure { e ->
-                Log.e(TAG, "Image download failed: ${e.message}", e)
+                errorReporter.report(TAG, "Görsel indirme başarısız", e)
+                _uiState.update { it.copy(errorMessage = "Görsel indirilemedi") }
             }
             _uiState.update { it.copy(downloadingMessageId = null, downloadProgress = 0f) }
         }
@@ -327,7 +366,10 @@ class ChatViewModel @Inject constructor(
                 Log.d(TAG, "Arama sonucu: ${results.size} mesaj ('$query')")
                 _uiState.update { it.copy(searchResults = results) }
             }
-            .catch { e -> Log.e(TAG, "Arama hatası: ${e.message}") }
+            .catch { e ->
+                errorReporter.report(TAG, "Arama hatası", e)
+                _uiState.update { it.copy(errorMessage = e.toAppError().toUserMessage()) }
+            }
             .launchIn(viewModelScope)
     }
 
@@ -388,6 +430,11 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /** Snackbar gösterildikten sonra hata durumunu temizle. */
+    fun dismissError() {
+        _uiState.update { it.copy(errorMessage = null) }
+    }
+
     fun acknowledgeTranslationDisclaimer() {
         viewModelScope.launch {
             translationConsentRepository.setDisclaimerAccepted(true)
@@ -407,8 +454,8 @@ class ChatViewModel @Inject constructor(
                 }
                 Log.d(TAG, "Çeviri tamamlandı: $translated")
             } else {
-                Log.w(TAG, "Çeviri sonuç boş")
-                _uiState.update { it.copy(translatingMessageId = null) }
+                errorReporter.breadcrumb(TAG, "Çeviri boş sonuç döndü: lang=$targetLang")
+                _uiState.update { it.copy(translatingMessageId = null, errorMessage = "Çeviri yapılamadı") }
             }
         }
     }
