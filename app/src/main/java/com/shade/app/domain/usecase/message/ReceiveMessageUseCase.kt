@@ -44,6 +44,19 @@ class ReceiveMessageUseCase @Inject constructor(
             // ile temsil edilir ve şifre çözmek için ONUN pub key'i gerekir.
             val isOutgoingEcho = payload.senderShadeId == myShadeId
 
+            // Self-echo uses the same messageId as the row we already inserted on send.
+            // insertMessage() is REPLACE, so persisting the echo again would reset status to SENT
+            // and wipe DELIVERED/READ from receipts (UI: double tick → single tick).
+            if (isOutgoingEcho) {
+                when (messageRepository.getMessageStatus(payload.messageId)) {
+                    MessageStatus.SENT, MessageStatus.DELIVERED, MessageStatus.READ -> {
+                        Log.d("ReceiveMessage", "Ignoring duplicate self-echo for ${payload.messageId}")
+                        return
+                    }
+                    else -> Unit
+                }
+            }
+
             val partner: ContactEntity = if (isOutgoingEcho) {
                 contactRepository.getContactByUserId(payload.receiverId) ?: run {
                     Log.w(

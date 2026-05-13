@@ -18,6 +18,7 @@
 build/
 app/build/
 */build/
+app/release/
 
 local.properties
 
