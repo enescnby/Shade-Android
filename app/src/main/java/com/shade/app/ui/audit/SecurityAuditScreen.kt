@@ -7,10 +7,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DeviceUnknown
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -134,34 +136,52 @@ fun SecurityAuditScreen(
     }
 }
 
+private data class AuditLogVisual(
+    val icon: ImageVector,
+    val iconColor: Color,
+    val label: String,
+)
+
+private fun auditLogVisual(actionType: String): AuditLogVisual {
+    val successGreen = Color(0xFF4CAF50)
+    val registerPurple = Color(0xFF7C4DFF)
+    val failRed = Color(0xFFE53935)
+    val failOrange = Color(0xFFFF6D00)
+    val deviceBlue = Color(0xFF1E88E5)
+    val infraGray = Color(0xFF78909C)
+    return when (actionType) {
+        "USER_REGISTERED" -> AuditLogVisual(Icons.Default.PersonAdd, registerPurple, "Kayıt tamamlandı")
+        "LOGIN_SUCCESS" -> AuditLogVisual(Icons.Default.LockOpen, successGreen, "Giriş doğrulandı")
+        "LOGIN_FAILED_INVALID_OR_EXPIRED_CHALLENGE" ->
+            AuditLogVisual(Icons.Default.Warning, failOrange, "Giriş başarısız: doğrulama oturumu yok veya süresi doldu")
+        "LOGIN_FAILED_INVALID_CHALLENGE" ->
+            AuditLogVisual(Icons.Default.Warning, failOrange, "Giriş başarısız: doğrulama kodu eşleşmedi")
+        "LOGIN_FAILED_ACCOUNT_MISSING" ->
+            AuditLogVisual(Icons.Default.Warning, failRed, "Giriş başarısız: hesap bulunamadı")
+        "LOGIN_FAILED_INVALID_SIGNATURE" ->
+            AuditLogVisual(Icons.Default.Warning, failRed, "Giriş başarısız: imza doğrulanamadı")
+        "LOGIN_FAILED_INVALID_DEVICE_ID" ->
+            AuditLogVisual(Icons.Default.Smartphone, failOrange, "Giriş başarısız: cihaz kimliği geçersiz")
+        "LOGIN_FAILED_UNKNOWN_DEVICE" ->
+            AuditLogVisual(Icons.Default.Smartphone, failOrange, "Giriş başarısız: bu cihaz hesaba tanımlı değil")
+        "LOGIN_FAILED_DEVICE_LOOKUP" ->
+            AuditLogVisual(Icons.Default.Smartphone, deviceBlue, "Giriş başarısız: cihaz bilgisi alınamadı")
+        "LOGIN_FAILED_DEVICE_UPDATE" ->
+            AuditLogVisual(Icons.Default.Smartphone, deviceBlue, "Giriş başarısız: cihaz güncellenemedi")
+        "LOGIN_FAILED_DEVICE_CREATE" ->
+            AuditLogVisual(Icons.Default.Smartphone, deviceBlue, "Giriş başarısız: cihaz kaydedilemedi")
+        "LOGIN_FAILED_TOKEN_ISSUE" ->
+            AuditLogVisual(Icons.Default.ErrorOutline, infraGray, "Giriş başarısız: oturum oluşturulamadı")
+        else -> AuditLogVisual(Icons.Default.DeviceUnknown, Color.Gray, actionType)
+    }
+}
+
 @Composable
 fun AuditLogCard(log: AuditLogItem) {
-    val icon: ImageVector
-    val iconColor: Color
-    val label: String
-
-    when (log.actionType) {
-        "LOGIN_SUCCESS" -> {
-            icon = Icons.Default.LockOpen
-            iconColor = Color(0xFF4CAF50)
-            label = "Başarılı Giriş"
-        }
-        "LOGIN_FAILED_INVALID_SIGNATURE" -> {
-            icon = Icons.Default.Warning
-            iconColor = Color(0xFFE53935)
-            label = "Başarısız Giriş Denemesi"
-        }
-        "USER_REGISTERED" -> {
-            icon = Icons.Default.PersonAdd
-            iconColor = Color(0xFF7C4DFF)
-            label = "Hesap Oluşturuldu"
-        }
-        else -> {
-            icon = Icons.Default.DeviceUnknown
-            iconColor = Color.Gray
-            label = log.actionType
-        }
-    }
+    val visual = auditLogVisual(log.actionType)
+    val icon = visual.icon
+    val iconColor = visual.iconColor
+    val label = visual.label
 
     val formattedTime = try {
         val instant = Instant.parse(log.timestamp)
