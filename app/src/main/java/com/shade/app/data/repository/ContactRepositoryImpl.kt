@@ -39,25 +39,34 @@ class ContactRepositoryImpl @Inject constructor(
 
     override suspend fun getOrFetchContact(shadeId: String): ContactEntity? {
         val local = contactDao.getContactByShadeId(shadeId)
-        if (local != null) return local
 
         return try {
             val response = userService.lookup("Bearer ${keyVaultManager.getAccessToken()}", shadeId)
             if (response.isSuccessful) {
                 response.body()?.let { dto ->
-                    val newContact = ContactEntity(
-                        userId = dto.userId,
-                        shadeId = dto.shadeId,
-                        encryptionPublicKey = dto.encryptionPublicKey,
-                        savedName = null,
-                        profileImagePath = null
-                    )
-                    contactDao.insertContact(newContact)
-                    newContact
+                    if (local != null) {
+                        // Kişi zaten DB'de var — sadece profileName'i güncelle
+                        // (savedName'e dokunma: kullanıcının kaydettiği özel isim korunur)
+                        val freshProfileName = dto.displayName?.takeIf { it.isNotBlank() }
+                        contactDao.updateProfileNameByShadeId(shadeId, freshProfileName)
+                        local.copy(profileName = freshProfileName)
+                    } else {
+                        // Yeni kişi: hem profileName hem encryptionPublicKey'i kaydet
+                        val newContact = ContactEntity(
+                            userId = dto.userId,
+                            shadeId = dto.shadeId,
+                            encryptionPublicKey = dto.encryptionPublicKey,
+                            savedName = null,
+                            profileName = dto.displayName?.takeIf { it.isNotBlank() },
+                            profileImagePath = null
+                        )
+                        contactDao.insertContact(newContact)
+                        newContact
+                    }
                 }
-            } else null
+            } else local
         } catch (e: Exception) {
-            null
+            local
         }
     }
 

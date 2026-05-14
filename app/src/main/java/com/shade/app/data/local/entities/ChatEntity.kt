@@ -10,4 +10,8 @@ data class ChatEntity(
     val lastMessage: String?,
     val lastMessageTimestamp: Long,
     val unreadCount: Int = 0,
+    /** true when this row represents a group chat */
+    val isGroup: Boolean = false,
+    /** Display name for group chats; null for 1:1 chats */
+    val groupName: String? = null,
 )

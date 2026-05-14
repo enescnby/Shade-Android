@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,6 +37,7 @@ private const val TAG = "SHADE_HOME"
 fun HomeScreen(
     onChatClick: (String, String) -> Unit,
     onNavigateToContacts: () -> Unit,
+    onNavigateToCreateGroup: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onLogout: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
@@ -100,20 +102,41 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    Log.d(TAG, "Yeni mesaj FAB tıklandı → Kişiler ekranına geçiliyor")
-                    onNavigateToContacts()
-                },
-                containerColor = AccentPurple,
-                contentColor = Color.White,
-                shape = RoundedCornerShape(16.dp),
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.navigationBarsPadding()
             ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.Chat,
-                    contentDescription = stringResource(R.string.new_chat)
-                )
+                // Secondary FAB — new group
+                SmallFloatingActionButton(
+                    onClick = {
+                        Log.d(TAG, "Yeni grup FAB tıklandı")
+                        onNavigateToCreateGroup()
+                    },
+                    containerColor = AccentPurple.copy(alpha = 0.85f),
+                    contentColor = Color.White,
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Group,
+                        contentDescription = stringResource(R.string.new_group)
+                    )
+                }
+                // Primary FAB — new 1:1 chat
+                FloatingActionButton(
+                    onClick = {
+                        Log.d(TAG, "Yeni mesaj FAB tıklandı → Kişiler ekranına geçiliyor")
+                        onNavigateToContacts()
+                    },
+                    containerColor = AccentPurple,
+                    contentColor = Color.White,
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Chat,
+                        contentDescription = stringResource(R.string.new_chat)
+                    )
+                }
             }
         }
     ) { paddingValues ->

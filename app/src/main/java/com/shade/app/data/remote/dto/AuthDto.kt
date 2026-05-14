@@ -43,6 +43,16 @@ data class LoginVerifyResponse(
     @SerializedName("core_guard_id") val shadeId: String,
     @SerializedName("user_id") val userId: String,
     @SerializedName("access_token") val accessToken: String,
+    @SerializedName("refresh_token") val refreshToken: String,
     @SerializedName("device_id") val deviceId: String,
     @SerializedName("message") val message: String
+)
+
+data class RefreshRequest(
+    @SerializedName("refresh_token") val refreshToken: String,
+)
+
+data class RefreshResponse(
+    @SerializedName("access_token") val accessToken: String,
+    @SerializedName("refresh_token") val refreshToken: String,
 )

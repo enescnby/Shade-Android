@@ -12,7 +12,12 @@ data class ContactEntity(
 
     val encryptionPublicKey: String,
 
+    /** Kullanıcının bu kişi için kaydettiği özel isim (Kişiler ekranından). */
     val savedName: String?,
+
+    /** Kişinin kendi profilinde belirlediği görünen ad (backend'den otomatik güncellenir). */
+    val profileName: String? = null,
+
     val profileImagePath: String?,
     val isBlocked: Boolean = false
 )

@@ -67,4 +67,41 @@
     <string name="translation_disclaimer_body">To translate a message, its text is sent to external translation services (third-party providers). Only continue if you accept this.</string>
     <string name="translation_disclaimer_continue">Continue</string>
     <string name="translation_disclaimer_cancel">Cancel</string>
+
+    <!-- Account recovery -->
+    <string name="recover_account">Recover Account</string>
+    <string name="recovery_title">Restore Your Account</string>
+    <string name="recovery_description">Enter your Shade ID and 12-word recovery phrase to restore access to your account.</string>
+    <string name="recover_button">Restore Access</string>
+
+    <!-- Group chat -->
+    <string name="create_group_title">New Group</string>
+    <string name="create_group_action">Create</string>
+    <string name="group_name_hint">Group name</string>
+    <string name="group_member_user_id_hint">Add member (user ID)</string>
+    <string name="group_members_header">Members</string>
+    <string name="new_group">New group</string>
+    <string name="invite_link_copied">Invite link copied to clipboard</string>
+    <string name="redeem_invite_hint">Enter invite code</string>
+    <string name="redeem_invite_action">Redeem</string>
+
+    <!-- Settings items -->
+    <string name="settings_profile">Profile</string>
+    <string name="settings_profile_subtitle">Manage your profile information</string>
+    <string name="settings_contacts">Contacts</string>
+    <string name="settings_contacts_subtitle">Manage and add contacts</string>
+    <string name="settings_security_audit">Security Audit</string>
+    <string name="settings_security_audit_subtitle">View account activities</string>
+    <string name="settings_web_connect">Connect to Web</string>
+    <string name="settings_web_connect_subtitle">Scan the QR code on the website</string>
+    <string name="settings_logout">Log Out</string>
+    <string name="settings_logout_subtitle">Sign out of your account safely</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_subtitle">App display language</string>
+    <string name="lang_english">English</string>
+    <string name="lang_turkish">Türkçe</string>
+
+    <!-- Notification strings (format args) -->
+    <string name="notification_more_messages">+%d more messages</string>
+    <string name="notification_summary">%1$d chats, %2$d messages</string>
 </resources>

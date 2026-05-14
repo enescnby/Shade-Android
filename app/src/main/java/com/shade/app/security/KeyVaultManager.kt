@@ -22,6 +22,7 @@ class KeyVaultManager @Inject constructor(
         val ED25519_PRIVATE_KEY = stringPreferencesKey("ED25519_PRIVATE_KEY")
         val X25519_PRIVATE_KEY = stringPreferencesKey("X25519_PRIVATE_KEY")
         val JWT_ACCESS_TOKEN = stringPreferencesKey("JWT_ACCESS_TOKEN")
+        val JWT_REFRESH_TOKEN = stringPreferencesKey("JWT_REFRESH_TOKEN")
         val SHADE_ID = stringPreferencesKey("SHADE_ID")
         val USER_ID = stringPreferencesKey("USER_ID")
         val DEVICE_ID = stringPreferencesKey("DEVICE_ID")
@@ -55,6 +56,9 @@ class KeyVaultManager @Inject constructor(
 
     suspend fun saveAccessToken(token: String) = saveValue(Keys.JWT_ACCESS_TOKEN, token)
     suspend fun getAccessToken(): String? = getValue(Keys.JWT_ACCESS_TOKEN)
+
+    suspend fun saveRefreshToken(token: String) = saveValue(Keys.JWT_REFRESH_TOKEN, token)
+    suspend fun getRefreshToken(): String? = getValue(Keys.JWT_REFRESH_TOKEN)
 
     /** DataStore + decrypt olmadan — sadece anahtar var mı (açılış rotası için). */
     suspend fun hasStoredAccessToken(): Boolean =

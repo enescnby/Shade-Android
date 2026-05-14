@@ -3,12 +3,14 @@ package com.shade.app.di
 import com.shade.app.data.repository.AuthRepositoryImpl
 import com.shade.app.data.repository.ChatRepositoryImpl
 import com.shade.app.data.repository.ContactRepositoryImpl
+import com.shade.app.data.repository.GroupRepositoryImpl
 import com.shade.app.data.repository.ImageRepositoryImpl
 import com.shade.app.data.repository.MessageRepositoryImpl
 import com.shade.app.data.repository.WebSessionRepositoryImpl
 import com.shade.app.domain.repository.AuthRepository
 import com.shade.app.domain.repository.ChatRepository
 import com.shade.app.domain.repository.ContactRepository
+import com.shade.app.domain.repository.GroupRepository
 import com.shade.app.domain.repository.ImageRepository
 import com.shade.app.domain.repository.MessageRepository
 import com.shade.app.domain.repository.WebSessionRepository
@@ -57,4 +59,10 @@ abstract class RepositoryModule {
     abstract fun bindWebSessionRepository(
         webSessionRepositoryImpl: WebSessionRepositoryImpl
     ): WebSessionRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindGroupRepository(
+        groupRepositoryImpl: GroupRepositoryImpl
+    ): GroupRepository
 }

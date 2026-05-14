@@ -1,5 +1,8 @@
 package com.shade.app.data.repository
 
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
 import com.shade.app.data.local.dao.MessageDao
 import com.shade.app.data.local.entities.MessageEntity
 import com.shade.app.data.local.entities.MessageStatus
@@ -21,6 +24,17 @@ class MessageRepositoryImpl @Inject constructor(
     override suspend fun insertMessage(message: MessageEntity) = messageDao.insertMessage(message)
 
     override fun getMessagesForChat(chatId: String): Flow<List<MessageEntity>> = messageDao.getMessagesForChat(chatId)
+
+    override fun getMessagesForChatPaged(chatId: String): Flow<PagingData<MessageEntity>> =
+        Pager(
+            config = PagingConfig(
+                pageSize = 40,
+                prefetchDistance = 10,
+                enablePlaceholders = false,
+                initialLoadSize = 60  // İlk açılışta biraz daha fazla yükle
+            ),
+            pagingSourceFactory = { messageDao.getMessagesForChatPaged(chatId) }
+        ).flow
 
     override suspend fun getUnreadMessages(chatId: String): List<MessageEntity> {
         return messageDao.getUnreadMessages(chatId)
@@ -46,7 +60,11 @@ class MessageRepositoryImpl @Inject constructor(
 
     override suspend fun updateMessageStatusIfForward(messageId: String, newStatus: MessageStatus) {
         val currentStatus = messageDao.getMessageStatus(messageId) ?: return
-        if (newStatus.ordinal > currentStatus.ordinal) {
+        // FAILED is a terminal error state — receipts can still move it forward to DELIVERED/READ
+        // because the server might have queued the message even if the WebSocket send returned false.
+        // Only skip the update if we would go "backward" (e.g. DELIVERED → SENT).
+        val effectiveCurrent = if (currentStatus == MessageStatus.FAILED) MessageStatus.PENDING else currentStatus
+        if (newStatus.ordinal > effectiveCurrent.ordinal) {
             messageDao.updateMessageStatus(messageId, newStatus)
         }
     }
@@ -55,4 +73,18 @@ class MessageRepositoryImpl @Inject constructor(
 
     override fun searchMessages(chatId: String, query: String): Flow<List<MessageEntity>> =
         messageDao.searchMessages(chatId, query)
+
+    override suspend fun markAsDeleted(messageId: String) = messageDao.markAsDeleted(messageId)
+
+    override suspend fun updateMessageContent(messageId: String, content: String) =
+        messageDao.updateContent(messageId, content)
+
+    override suspend fun countMediaMessages(chatId: String): Int =
+        messageDao.countMediaMessages(chatId)
+
+    override suspend fun updateAudioPath(messageId: String, path: String, durationMs: Long) =
+        messageDao.updateAudioPath(messageId, path, durationMs)
+
+    override suspend fun updateFilePath(messageId: String, path: String) =
+        messageDao.updateFilePath(messageId, path)
 }

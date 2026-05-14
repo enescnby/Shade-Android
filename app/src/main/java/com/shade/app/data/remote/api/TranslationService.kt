@@ -1,14 +1,14 @@
 package com.shade.app.data.remote.api
 
-import com.shade.app.data.remote.dto.TranslationResponse
+import com.shade.app.data.remote.dto.TranslateRequest
+import com.shade.app.data.remote.dto.TranslateResponse
 import retrofit2.Response
-import retrofit2.http.GET
-import retrofit2.http.Query
+import retrofit2.http.Body
+import retrofit2.http.POST
 
 interface TranslationService {
-    @GET("get")
+    @POST("translate")
     suspend fun translate(
-        @Query("q") text: String,
-        @Query("langpair") langpair: String
-    ): Response<TranslationResponse>
+        @Body request: TranslateRequest
+    ): Response<TranslateResponse>
 }

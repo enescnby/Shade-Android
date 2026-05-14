@@ -18,11 +18,27 @@ data class MessageEntity(
     val status: MessageStatus,
 
     val thumbnailPath: String? = null,
-    val imagePath: String? = null
+    val imagePath: String? = null,
+
+    // Audio message fields
+    val audioPath: String? = null,
+    val audioDurationMs: Long? = null,
+
+    // File message fields
+    val filePath: String? = null,
+    val fileName: String? = null,
+    val fileSizeBytes: Long? = null,
+
+    val isDeleted: Boolean = false,
+    val isEdited: Boolean = false,
+
+    // Reply-to support
+    val replyToId: String? = null,
+    val replyToContent: String? = null
 )
 
 enum class MessageType {
-    TEXT, IMAGE
+    TEXT, IMAGE, AUDIO, FILE
 }
 
 enum class MessageStatus {
