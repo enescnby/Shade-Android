@@ -39,7 +39,7 @@ class HomeViewModel @Inject constructor(
 
     init {
         Log.d(TAG, "HomeViewModel başlatıldı")
-        messageListener.startListening()
+        messageListener.ensureConnected()
         observeChats()
     }
 

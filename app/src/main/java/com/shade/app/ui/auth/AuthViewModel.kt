@@ -1,5 +1,6 @@
 package com.shade.app.ui.auth
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.messaging.FirebaseMessaging
@@ -48,7 +49,9 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 fcmToken = FirebaseMessaging.getInstance().token.await()
+                Log.d(TAG, "FCM token obtained: ${fcmToken.take(20)}...")
             } catch (e: Exception) {
+                Log.w(TAG, "FCM token fetch failed, proceeding without token", e)
                 fcmToken = ""
             }
         }
@@ -57,17 +60,20 @@ class AuthViewModel @Inject constructor(
     fun register(deviceModel: String) {
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
+            Log.d(TAG, "register() called — deviceModel=$deviceModel fcmToken=${fcmToken.take(10)}...")
 
             val currentMnemonic = mnemonicManager.generateMnemonic()
             val result = registerUseCase(currentMnemonic, deviceModel, fcmToken)
 
             result.onSuccess { authResult ->
+                Log.d(TAG, "register success — shadeId=${authResult.shadeId}")
                 _uiState.value = AuthUiState.Success(
                     message = UiText.StringResource(R.string.account_created),
                     mnemonic = currentMnemonic,
                     shadeId = authResult.shadeId
                 )
-            }.onFailure {
+            }.onFailure { e ->
+                Log.e(TAG, "register failed — ${e::class.simpleName}: ${e.message} | cause: ${e.cause?.message}")
                 _uiState.value = AuthUiState.Error(UiText.StringResource(R.string.something_went_wrong))
             }
         }
@@ -76,13 +82,20 @@ class AuthViewModel @Inject constructor(
     fun login(shadeId: String, mnemonic: List<String>, deviceModel: String) {
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
+            Log.d(TAG, "login() called — shadeId=$shadeId")
             val result = loginUseCase(shadeId, mnemonic, deviceModel, fcmToken)
 
             result.onSuccess {
+                Log.d(TAG, "login success")
                 _uiState.value = AuthUiState.Success(UiText.StringResource(R.string.login_successful))
-            }.onFailure {
+            }.onFailure { e ->
+                Log.e(TAG, "login failed", e)
                 _uiState.value = AuthUiState.Error(UiText.StringResource(R.string.something_went_wrong))
             }
         }
+    }
+
+    companion object {
+        private const val TAG = "AuthViewModel"
     }
 }

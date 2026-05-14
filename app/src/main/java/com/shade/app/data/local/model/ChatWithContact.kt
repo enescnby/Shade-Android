@@ -12,6 +12,11 @@ data class ChatWithContact(
         entityColumn = "shadeId"
     ) val contact: ContactEntity?
 ) {
+    /** Sohbet listesi ve chat başlığı için: sadece kullanıcının kaydettiği isim ya da Shade ID */
     val displayName: String
-        get() = contact?.savedName ?: chat.chatId
+        get() = contact?.savedName ?: contact?.shadeId ?: chat.chatId
+
+    /** Profil ekranı için: kayıtlı isim → profil adı → shadeId */
+    val fullDisplayName: String
+        get() = contact?.savedName ?: contact?.profileName ?: contact?.shadeId ?: chat.chatId
 }

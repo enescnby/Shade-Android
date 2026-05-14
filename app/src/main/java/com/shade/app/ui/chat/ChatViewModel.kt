@@ -11,15 +11,29 @@ import com.shade.app.data.remote.api.UserService
 import com.shade.app.data.preferences.TranslationConsentRepository
 import com.shade.app.data.repository.TranslationRepository
 import com.shade.app.domain.repository.ChatRepository
+import com.shade.app.domain.repository.ContactRepository
 import com.shade.app.domain.repository.MessageRepository
+import com.shade.app.data.repository.ChatPrefsRepository
+import com.shade.app.domain.usecase.message.DeleteMessageForEveryoneUseCase
+import com.shade.app.domain.usecase.message.DownloadFileUseCase
 import com.shade.app.domain.usecase.message.DownloadImageUseCase
+import com.shade.app.domain.usecase.message.EditMessageUseCase
 import com.shade.app.domain.usecase.message.MarkChatAsReadUseCase
+import com.shade.app.domain.usecase.message.SendAudioMessageUseCase
+import com.shade.app.domain.usecase.message.SendFileMessageUseCase
 import com.shade.app.domain.usecase.message.SendImageMessageUseCase
 import com.shade.app.domain.usecase.message.SendMessageUseCase
+import java.io.File
 import com.shade.app.security.KeyVaultManager
 import com.shade.app.util.ActiveChatTracker
+import com.shade.app.util.AppError
+import com.shade.app.util.ErrorReporter
 import com.shade.app.util.NotificationHelper
+import com.shade.app.util.toAppError
+import com.shade.app.util.toUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.catch
@@ -35,11 +49,15 @@ data class ChatUiState(
     val messages: List<MessageEntity> = emptyList(),
     val chatName: String = "",
     val chatId: String = "",
+    val contactShadeId: String? = null,
     val myShadeId: String = "",
     val initialScrollIndex: Int? = null,
     val firstUnreadMessageId: String? = null,
     val isSendingImage: Boolean = false,
+    val isSendingAudio: Boolean = false,
+    val isSendingFile: Boolean = false,
     val downloadingMessageId: String? = null,
+    val downloadingFileMessageId: String? = null,
     val downloadProgress: Float = 0f,
     // Search
     val isSearchActive: Boolean = false,
@@ -49,7 +67,14 @@ data class ChatUiState(
     val lastSeenText: String = "",
     // Translation
     val translatedMessages: Map<String, String> = emptyMap(),
-    val translatingMessageId: String? = null
+    val translatingMessageId: String? = null,
+    // Edit
+    val editingMessage: MessageEntity? = null,
+    // Reply
+    val replyingToMessage: MessageEntity? = null,
+    // Chat customisation
+    val chatBackgroundColor: Int? = null,   // ARGB int, null = default
+    val errorMessage: String? = null        // Snackbar mesajı — null = gösterme
 )
 
 @HiltViewModel
@@ -59,13 +84,21 @@ class ChatViewModel @Inject constructor(
     private val sendImageMessageUseCase: SendImageMessageUseCase,
     private val downloadImageUseCase: DownloadImageUseCase,
     private val markChatAsReadUseCase: MarkChatAsReadUseCase,
+    private val deleteMessageForEveryoneUseCase: DeleteMessageForEveryoneUseCase,
+    private val editMessageUseCase: EditMessageUseCase,
+    private val sendAudioMessageUseCase: SendAudioMessageUseCase,
+    private val sendFileMessageUseCase: SendFileMessageUseCase,
+    private val downloadFileUseCase: DownloadFileUseCase,
     private val chatRepository: ChatRepository,
+    private val contactRepository: ContactRepository,
     private val keyVaultManager: KeyVaultManager,
     private val userService: UserService,
     private val translationRepository: TranslationRepository,
     private val translationConsentRepository: TranslationConsentRepository,
     private val activeChatTracker: ActiveChatTracker,
     private val notificationHelper: NotificationHelper,
+    private val chatPrefsRepository: ChatPrefsRepository,
+    private val errorReporter: ErrorReporter,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -83,6 +116,18 @@ class ChatViewModel @Inject constructor(
         )
     )
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
+
+    /**
+     * Sayfalı mesaj akışı — büyük sohbetlerde RAM kullanımını sınırlar.
+     * [cachedIn] ile ViewModel yeniden başlatılsa da cache'den beslenir.
+     *
+     * NOT: Şu an [ChatUiState.messages] ile paralel çalışır.
+     * Arama, okunmamış sayacı gibi feature'lar hâlâ [messages]'ı kullanır.
+     * İleride [messages] tamamen kaldırılıp yalnızca sayfalı veri kullanılabilir.
+     */
+    val pagedMessages: Flow<PagingData<MessageEntity>> =
+        messageRepository.getMessagesForChatPaged(chatId)
+            .cachedIn(viewModelScope)
 
     val translationDisclaimerAccepted: StateFlow<Boolean> =
         translationConsentRepository.disclaimerAccepted.stateIn(
@@ -104,7 +149,10 @@ class ChatViewModel @Inject constructor(
         observeMessages()
         observeChatDetails()
         fetchUserStatus()
+        observeChatPrefs()
         viewModelScope.launch { markChatAsReadUseCase(chatId) }
+        // Arka planda profil adını tazele: Tel1 adını değiştirdiyse Tel2 anında görsün
+        viewModelScope.launch { contactRepository.getOrFetchContact(chatId) }
     }
 
     override fun onCleared() {
@@ -152,7 +200,12 @@ class ChatViewModel @Inject constructor(
         chatRepository.observeChatWithContact(chatId)
             .onEach { chatWithContact ->
                 chatWithContact?.let { details ->
-                    _uiState.update { it.copy(chatName = details.displayName) }
+                    _uiState.update {
+                        it.copy(
+                            chatName = details.displayName,
+                            contactShadeId = details.contact?.shadeId
+                        )
+                    }
                 }
             }
             .launchIn(viewModelScope)
@@ -186,16 +239,30 @@ class ChatViewModel @Inject constructor(
                     Log.d(TAG, "Son görülme: $text")
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Son görülme alınamadı: ${e.message}")
+                errorReporter.report(TAG, "Son görülme alınamadı", e)
+                // Non-fatal: kullanıcıya gösterme, sadece raporla
             }
         }
     }
 
+    private fun observeChatPrefs() {
+        chatPrefsRepository.getChatBackground(chatId)
+            .onEach { color -> _uiState.update { it.copy(chatBackgroundColor = color) } }
+            .launchIn(viewModelScope)
+    }
+
     fun sendMessage(content: String) {
         if (content.isBlank()) return
-        Log.d(TAG, "Metin mesajı gönderiliyor → chatId=$chatId")
+        val replyTo = _uiState.value.replyingToMessage
+        Log.d(TAG, "Metin mesajı gönderiliyor → chatId=$chatId, reply=${replyTo?.messageId}")
         viewModelScope.launch {
-            sendMessageUseCase(receiverShadeId = chatId, content = content)
+            sendMessageUseCase(
+                receiverShadeId = chatId,
+                content = content,
+                replyToId = replyTo?.messageId,
+                replyToContent = replyTo?.content?.take(80)
+            )
+            _uiState.update { it.copy(replyingToMessage = null) }
             Log.d(TAG, "Metin mesajı gönderildi")
         }
     }
@@ -208,6 +275,48 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun sendAudio(audioFile: File, durationMs: Long) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSendingAudio = true, errorMessage = null) }
+            val result = sendAudioMessageUseCase(
+                receiverShadeId = chatId,
+                audioFile = audioFile,
+                durationMs = durationMs
+            )
+            _uiState.update { it.copy(isSendingAudio = false) }
+            result.onFailure { e ->
+                Log.e(TAG, "Ses mesajı gönderilemedi: ${e.message}", e)
+                _uiState.update {
+                    it.copy(errorMessage = "Ses mesajı gönderilemedi: ${e.message ?: "Bilinmeyen hata"}")
+                }
+            }
+        }
+    }
+
+    fun sendFile(uri: Uri) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSendingFile = true) }
+            sendFileMessageUseCase(receiverShadeId = chatId, fileUri = uri)
+            _uiState.update { it.copy(isSendingFile = false) }
+        }
+    }
+
+    fun downloadAudio(message: MessageEntity) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(downloadingFileMessageId = message.messageId) }
+            downloadFileUseCase.downloadAudio(message)
+            _uiState.update { it.copy(downloadingFileMessageId = null) }
+        }
+    }
+
+    fun downloadFile(message: MessageEntity) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(downloadingFileMessageId = message.messageId) }
+            downloadFileUseCase.downloadFile(message)
+            _uiState.update { it.copy(downloadingFileMessageId = null) }
+        }
+    }
+
     fun downloadImage(message: MessageEntity) {
         viewModelScope.launch {
             _uiState.update { it.copy(downloadingMessageId = message.messageId, downloadProgress = 0f) }
@@ -215,7 +324,8 @@ class ChatViewModel @Inject constructor(
                 _uiState.update { it.copy(downloadProgress = progress) }
             }
             result.onFailure { e ->
-                Log.e(TAG, "Image download failed: ${e.message}", e)
+                errorReporter.report(TAG, "Görsel indirme başarısız", e)
+                _uiState.update { it.copy(errorMessage = "Görsel indirilemedi") }
             }
             _uiState.update { it.copy(downloadingMessageId = null, downloadProgress = 0f) }
         }
@@ -242,8 +352,63 @@ class ChatViewModel @Inject constructor(
                 Log.d(TAG, "Arama sonucu: ${results.size} mesaj ('$query')")
                 _uiState.update { it.copy(searchResults = results) }
             }
-            .catch { e -> Log.e(TAG, "Arama hatası: ${e.message}") }
+            .catch { e ->
+                errorReporter.report(TAG, "Arama hatası", e)
+                _uiState.update { it.copy(errorMessage = e.toAppError().toUserMessage()) }
+            }
             .launchIn(viewModelScope)
+    }
+
+    fun deleteForMe(message: MessageEntity) {
+        viewModelScope.launch {
+            messageRepository.deleteMessage(message)
+            Log.d(TAG, "Mesaj kendimden silindi: ${message.messageId}")
+        }
+    }
+
+    fun deleteForEveryone(message: MessageEntity) {
+        viewModelScope.launch {
+            deleteMessageForEveryoneUseCase(message)
+            Log.d(TAG, "Mesaj herkesten silindi: ${message.messageId}")
+        }
+    }
+
+    fun startEditing(message: MessageEntity) {
+        _uiState.update { it.copy(editingMessage = message) }
+    }
+
+    fun cancelEditing() {
+        _uiState.update { it.copy(editingMessage = null) }
+    }
+
+    fun confirmEdit(newContent: String) {
+        val message = _uiState.value.editingMessage ?: return
+        _uiState.update { it.copy(editingMessage = null) }
+        viewModelScope.launch {
+            editMessageUseCase(message, newContent)
+            Log.d(TAG, "Mesaj düzenlendi: ${message.messageId}")
+        }
+    }
+
+    // ── Reply ──────────────────────────────────────────────────────────────────
+    fun startReply(message: MessageEntity) {
+        _uiState.update { it.copy(replyingToMessage = message) }
+    }
+
+    fun cancelReply() {
+        _uiState.update { it.copy(replyingToMessage = null) }
+    }
+
+    // ── Chat background ────────────────────────────────────────────────────────
+    fun setChatBackground(colorArgb: Int?) {
+        viewModelScope.launch {
+            chatPrefsRepository.setChatBackground(chatId, colorArgb)
+        }
+    }
+
+    /** Snackbar gösterildikten sonra hata durumunu temizle. */
+    fun dismissError() {
+        _uiState.update { it.copy(errorMessage = null) }
     }
 
     fun acknowledgeTranslationDisclaimer() {
@@ -265,8 +430,8 @@ class ChatViewModel @Inject constructor(
                 }
                 Log.d(TAG, "Çeviri tamamlandı: $translated")
             } else {
-                Log.w(TAG, "Çeviri sonuç boş")
-                _uiState.update { it.copy(translatingMessageId = null) }
+                errorReporter.breadcrumb(TAG, "Çeviri boş sonuç döndü: lang=$targetLang")
+                _uiState.update { it.copy(translatingMessageId = null, errorMessage = "Çeviri yapılamadı") }
             }
         }
     }

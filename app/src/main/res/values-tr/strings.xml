@@ -67,4 +67,41 @@
     <string name="translation_disclaimer_body">Mesajı çevirmek için metin, harici çeviri hizmetlerine (üçüncül hizmet sağlayıcılar) gönderilir. Bunu kabul ediyorsanız devam edin.</string>
     <string name="translation_disclaimer_continue">Devam et</string>
     <string name="translation_disclaimer_cancel">Vazgeç</string>
+
+    <!-- Hesap kurtarma -->
+    <string name="recover_account">Hesabı Kurtar</string>
+    <string name="recovery_title">Hesabını Geri Yükle</string>
+    <string name="recovery_description">Hesabına erişimi geri kazanmak için Shade Kimliğini ve 12 kelimelik kurtarma ifadeni gir.</string>
+    <string name="recover_button">Erişimi Geri Yükle</string>
+
+    <!-- Grup sohbet -->
+    <string name="create_group_title">Yeni Grup</string>
+    <string name="create_group_action">Oluştur</string>
+    <string name="group_name_hint">Grup adı</string>
+    <string name="group_member_user_id_hint">Üye ekle (kullanıcı ID)</string>
+    <string name="group_members_header">Üyeler</string>
+    <string name="new_group">Yeni grup</string>
+    <string name="invite_link_copied">Davet bağlantısı panoya kopyalandı</string>
+    <string name="redeem_invite_hint">Davet kodu girin</string>
+    <string name="redeem_invite_action">Kullan</string>
+
+    <!-- Ayarlar kalemleri -->
+    <string name="settings_profile">Profil</string>
+    <string name="settings_profile_subtitle">Profil bilgilerini yönet</string>
+    <string name="settings_contacts">Kişiler</string>
+    <string name="settings_contacts_subtitle">Kişilerini yönet ve yeni ekle</string>
+    <string name="settings_security_audit">Güvenlik Günlüğü</string>
+    <string name="settings_security_audit_subtitle">Hesap etkinliklerini görüntüle</string>
+    <string name="settings_web_connect">Web\'e Bağlan</string>
+    <string name="settings_web_connect_subtitle">Web\'deki QR kodu tara</string>
+    <string name="settings_logout">Çıkış Yap</string>
+    <string name="settings_logout_subtitle">Hesabından güvenli bir şekilde çık</string>
+    <string name="settings_language">Dil</string>
+    <string name="settings_language_subtitle">Uygulama görüntüleme dili</string>
+    <string name="lang_english">English</string>
+    <string name="lang_turkish">Türkçe</string>
+
+    <!-- Bildirim stringleri -->
+    <string name="notification_more_messages">+%d daha fazla mesaj</string>
+    <string name="notification_summary">%1$d sohbetten %2$d mesaj</string>
 </resources>
