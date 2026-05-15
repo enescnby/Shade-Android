@@ -20,6 +20,10 @@ class ChatRepositoryImpl @Inject constructor(
         return chatDao.observeChatWithContact(chatId)
     }
 
+    override suspend fun getChatById(chatId: String): ChatEntity? {
+        return chatDao.getChatById(chatId)
+    }
+
     override suspend fun insertOrUpdateChat(chat: ChatEntity) {
         chatDao.insertOrUpdateChat(chat)
     }

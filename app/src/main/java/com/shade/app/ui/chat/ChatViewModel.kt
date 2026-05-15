@@ -148,11 +148,17 @@ class ChatViewModel @Inject constructor(
         }
         observeMessages()
         observeChatDetails()
-        fetchUserStatus()
         observeChatPrefs()
         viewModelScope.launch { markChatAsReadUseCase(chatId) }
-        // Arka planda profil adını tazele: Tel1 adını değiştirdiyse Tel2 anında görsün
-        viewModelScope.launch { contactRepository.getOrFetchContact(chatId) }
+        viewModelScope.launch {
+            val chat = chatRepository.getChatById(chatId)
+            val isGroup = chat?.isGroup == true
+            if (!isGroup) {
+                // Grup değil: profil adını tazele ve son görülmeyi getir
+                contactRepository.getOrFetchContact(chatId)
+                fetchUserStatus()
+            }
+        }
     }
 
     override fun onCleared() {
