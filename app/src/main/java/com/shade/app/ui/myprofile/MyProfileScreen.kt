@@ -41,6 +41,7 @@ fun MyProfileScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val scheme = MaterialTheme.colorScheme
 
     var nameText by remember(uiState.displayName) {
         mutableStateOf(uiState.displayName)
@@ -66,9 +67,9 @@ fun MyProfileScreen(
     if (showRemovePhotoDialog) {
         AlertDialog(
             onDismissRequest = { showRemovePhotoDialog = false },
-            containerColor = SurfaceDark,
-            title = { Text("Fotoğrafı Kaldır", color = TextPrimary) },
-            text = { Text("Profil fotoğrafını kaldırmak istediğine emin misin?", color = TextSecondary) },
+            containerColor = scheme.surface,
+            title = { Text("Fotoğrafı Kaldır", color = scheme.onSurface) },
+            text = { Text("Profil fotoğrafını kaldırmak istediğine emin misin?", color = scheme.onSurfaceVariant) },
             confirmButton = {
                 TextButton(onClick = {
                     showRemovePhotoDialog = false
@@ -79,16 +80,16 @@ fun MyProfileScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showRemovePhotoDialog = false }) {
-                    Text("İptal", color = TextMuted)
+                    Text("İptal", color = scheme.onSurfaceVariant)
                 }
             }
         )
     }
 
     Scaffold(
-        containerColor = RichBlack,
+        containerColor = scheme.background,
         topBar = {
-            Surface(color = SurfaceDark, shadowElevation = 2.dp) {
+            Surface(color = scheme.surface, shadowElevation = 2.dp) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -102,14 +103,14 @@ fun MyProfileScreen(
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Geri",
-                            tint = TextPrimary
+                            tint = scheme.onSurface
                         )
                     }
                     Text(
                         "Profilim",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary,
+                        color = scheme.onSurface,
                         modifier = Modifier.align(Alignment.Center)
                     )
                 }
@@ -130,7 +131,7 @@ fun MyProfileScreen(
                     .height(220.dp)
                     .background(
                         Brush.verticalGradient(
-                            listOf(AccentPurple.copy(alpha = 0.18f), RichBlack)
+                            listOf(AccentPurple.copy(alpha = 0.18f), scheme.background)
                         )
                     ),
                 contentAlignment = Alignment.Center
@@ -181,7 +182,7 @@ fun MyProfileScreen(
                                         )
                                     },
                                 shape = CircleShape,
-                                color = SurfaceElevated
+                                color = scheme.surfaceVariant
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     val initial = nameText.ifBlank { uiState.shadeId }
@@ -227,7 +228,7 @@ fun MyProfileScreen(
                         text = nameText.ifBlank { "İsim belirlenmedi" },
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        color = scheme.onSurface
                     )
 
                     // Fotoğraf varsa kaldır linki
@@ -250,9 +251,9 @@ fun MyProfileScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
-                color = SurfaceElevated,
+                color = scheme.surfaceVariant,
                 shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(0.5.dp, OutlineMuted)
+                border = androidx.compose.foundation.BorderStroke(0.5.dp, scheme.outline)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -274,7 +275,7 @@ fun MyProfileScreen(
                     Text(
                         text = uiState.shadeId.ifBlank { "Yükleniyor..." },
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextPrimary,
+                        color = scheme.onSurface,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 15.sp
                     )
@@ -282,7 +283,7 @@ fun MyProfileScreen(
                     Text(
                         "Bu ID başkalarının seni bulmasını sağlar",
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextMuted
+                        color = scheme.onSurfaceVariant
                     )
                 }
             }
@@ -294,9 +295,9 @@ fun MyProfileScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
-                color = SurfaceElevated,
+                color = scheme.surfaceVariant,
                 shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(0.5.dp, OutlineMuted)
+                border = androidx.compose.foundation.BorderStroke(0.5.dp, scheme.outline)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -318,21 +319,21 @@ fun MyProfileScreen(
                     Text(
                         "Karşı taraf seni kaydetmemişse bu ismi görür",
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextMuted
+                        color = scheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
                         value = nameText,
                         onValueChange = { nameText = it },
-                        placeholder = { Text("Adını gir...", color = TextMuted) },
+                        placeholder = { Text("Adını gir...", color = scheme.onSurfaceVariant) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = AccentPurple,
-                            unfocusedBorderColor = OutlineMuted,
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary,
+                            unfocusedBorderColor = scheme.outline,
+                            focusedTextColor = scheme.onSurface,
+                            unfocusedTextColor = scheme.onSurface,
                             cursorColor = AccentPurple
                         )
                     )
@@ -346,7 +347,7 @@ fun MyProfileScreen(
                         enabled = nameText.isNotBlank() && nameText != uiState.displayName,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = AccentPurple,
-                            disabledContainerColor = SurfaceContainer
+                            disabledContainerColor = scheme.surfaceContainerHigh
                         )
                     ) {
                         Icon(
@@ -367,9 +368,9 @@ fun MyProfileScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
-                color = SurfaceElevated,
+                color = scheme.surfaceVariant,
                 shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(0.5.dp, OutlineMuted)
+                border = androidx.compose.foundation.BorderStroke(0.5.dp, scheme.outline)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -391,7 +392,7 @@ fun MyProfileScreen(
                     Text(
                         "Tüm mesajlar uçtan uca şifreleme (X25519 + ChaCha20) ile korunmaktadır. Sunucu mesajlarını okuyamaz.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary
+                        color = scheme.onSurfaceVariant
                     )
                 }
             }
