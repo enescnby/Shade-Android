@@ -14,9 +14,11 @@ data class ChatWithContact(
 ) {
     /** Sohbet listesi ve chat başlığı için: sadece kullanıcının kaydettiği isim ya da Shade ID */
     val displayName: String
-        get() = contact?.savedName ?: contact?.shadeId ?: chat.chatId
+        get() = if (chat.isGroup) chat.groupName ?: chat.chatId
+                else contact?.savedName ?: contact?.shadeId ?: chat.chatId
 
     /** Profil ekranı için: kayıtlı isim → profil adı → shadeId */
     val fullDisplayName: String
-        get() = contact?.savedName ?: contact?.profileName ?: contact?.shadeId ?: chat.chatId
+        get() = if (chat.isGroup) chat.groupName ?: chat.chatId
+                else contact?.savedName ?: contact?.profileName ?: contact?.shadeId ?: chat.chatId
 }

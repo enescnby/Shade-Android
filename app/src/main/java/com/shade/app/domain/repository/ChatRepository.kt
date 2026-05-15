@@ -9,6 +9,7 @@ interface ChatRepository {
 
     fun getAllChatsWithContact(): Flow<List<ChatWithContact>>
     fun observeChatWithContact(chatId: String): Flow<ChatWithContact?>
+    suspend fun getChatById(chatId: String): com.shade.app.data.local.entities.ChatEntity?
     suspend fun insertOrUpdateChat(chat: ChatEntity)
     suspend fun resetUnreadCount(chatId: String)
     suspend fun updateLastMessage(chatId: String, lastMessage: String, timestamp: Long)
