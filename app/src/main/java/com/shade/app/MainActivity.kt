@@ -48,6 +48,7 @@ import com.shade.app.ui.auth.AuthScreen
 import com.shade.app.ui.chat.ChatScreen
 import com.shade.app.ui.contacts.ContactsScreen
 import com.shade.app.ui.group.CreateGroupScreen
+import com.shade.app.ui.group.GroupDetailScreen
 import com.shade.app.ui.home.HomeScreen
 import com.shade.app.ui.navigation.Screen
 import com.shade.app.ui.myprofile.MyProfileScreen
@@ -355,6 +356,10 @@ fun AppNavigation(
                 onProfileClick = { shadeId ->
                     Log.d(TAG, "Chat → Profile: shadeId=$shadeId")
                     navController.navigate(Screen.Profile.createRoute(shadeId))
+                },
+                onGroupInfoClick = { groupId ->
+                    Log.d(TAG, "Chat → GroupDetail: groupId=$groupId")
+                    navController.navigate(Screen.GroupDetail.createRoute(groupId))
                 }
             )
         }
@@ -392,6 +397,21 @@ fun AppNavigation(
                     navController.navigate(Screen.Chat.createRoute(groupId, groupName)) {
                         popUpTo(Screen.CreateGroup.route) { inclusive = true }
                     }
+                }
+            )
+        }
+
+        composable(
+            route = Screen.GroupDetail.route,
+            arguments = listOf(navArgument("groupId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val groupId = backStackEntry.arguments?.getString("groupId").orEmpty()
+            Log.d(TAG, "→ GroupDetail ekranı: groupId=$groupId")
+            GroupDetailScreen(
+                onBack = { navController.popBackStack() },
+                onLeft = {
+                    Log.d(TAG, "GroupDetail → ayrıldı, Home'a dönülüyor")
+                    navController.popBackStack(Screen.Home.route, inclusive = false)
                 }
             )
         }

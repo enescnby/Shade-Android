@@ -11,23 +11,48 @@ import com.shade.app.data.local.entities.MessageStatus
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface MessageDao{
+interface MessageDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: MessageEntity)
 
-    @Query("SELECT * FROM messages WHERE senderId = :chatId OR receiverId = :chatId ORDER BY timestamp")
-    fun getMessagesForChat(chatId: String): Flow<List<MessageEntity>>
+    @Query(
+        "SELECT * FROM messages WHERE isGroupThread = 0 AND " +
+            "(senderId = :chatId OR receiverId = :chatId) ORDER BY timestamp ASC, rowid ASC"
+    )
+    fun getDmMessagesForChat(chatId: String): Flow<List<MessageEntity>>
+
+    @Query(
+        "SELECT * FROM messages WHERE isGroupThread != 0 AND receiverId = :chatId " +
+            "ORDER BY timestamp ASC, rowid ASC"
+    )
+    fun getGroupMessagesForChat(chatId: String): Flow<List<MessageEntity>>
 
     /**
      * Sayfalı mesaj listesi — en yeni mesajlar önce gelir.
-     * [LazyPagingItems] ile ChatScreen'de kullanılır.
-     * PAGE_SIZE = 40 mesaj yüklenir; kaydırdıkça önceki mesajlar eklenir.
+     * `rowid` ile aynı unix zamanına düşen iletilerde deterministik sıra.
      */
-    @Query("SELECT * FROM messages WHERE senderId = :chatId OR receiverId = :chatId ORDER BY timestamp DESC")
-    fun getMessagesForChatPaged(chatId: String): PagingSource<Int, MessageEntity>
+    @Query(
+        "SELECT * FROM messages WHERE isGroupThread = 0 AND " +
+            "(senderId = :chatId OR receiverId = :chatId) ORDER BY timestamp DESC, rowid DESC"
+    )
+    fun getDmMessagesForChatPaged(chatId: String): PagingSource<Int, MessageEntity>
 
-    @Query("SELECT * FROM messages WHERE senderId = :chatId AND status != 'READ'")
-    suspend fun getUnreadMessages(chatId: String): List<MessageEntity>
+    @Query(
+        "SELECT * FROM messages WHERE isGroupThread != 0 AND receiverId = :chatId " +
+            "ORDER BY timestamp DESC, rowid DESC"
+    )
+    fun getGroupMessagesForChatPaged(chatId: String): PagingSource<Int, MessageEntity>
+
+    @Query(
+        "SELECT * FROM messages WHERE isGroupThread = 0 AND senderId = :chatId AND status != 'READ'"
+    )
+    suspend fun getDmUnreadMessages(chatId: String): List<MessageEntity>
+
+    @Query(
+        "SELECT * FROM messages WHERE isGroupThread != 0 AND receiverId = :groupId AND " +
+            "senderId != :myShadeId AND status != 'READ'"
+    )
+    suspend fun getGroupUnreadMessages(groupId: String, myShadeId: String): List<MessageEntity>
 
     @Query("UPDATE messages SET status = :status WHERE messageId = :messageId")
     suspend fun updateMessageStatus(messageId: String, status: MessageStatus)
@@ -44,8 +69,18 @@ interface MessageDao{
     @Query("SELECT status FROM messages WHERE messageId = :messageId")
     suspend fun getMessageStatus(messageId: String): MessageStatus?
 
-    @Query("SELECT * FROM messages WHERE (senderId = :chatId OR receiverId = :chatId) AND content LIKE '%' || :query || '%' ORDER BY timestamp DESC")
-    fun searchMessages(chatId: String, query: String): Flow<List<MessageEntity>>
+    @Query(
+        "SELECT * FROM messages WHERE isGroupThread = 0 AND " +
+            "(senderId = :chatId OR receiverId = :chatId) AND content LIKE '%' || :query || '%' " +
+            "ORDER BY timestamp DESC, rowid DESC"
+    )
+    fun searchDmMessages(chatId: String, query: String): Flow<List<MessageEntity>>
+
+    @Query(
+        "SELECT * FROM messages WHERE isGroupThread != 0 AND receiverId = :chatId AND " +
+            "content LIKE '%' || :query || '%' ORDER BY timestamp DESC, rowid DESC"
+    )
+    fun searchGroupMessages(chatId: String, query: String): Flow<List<MessageEntity>>
 
     @Delete
     suspend fun deleteMessage(message: MessageEntity)
@@ -56,7 +91,15 @@ interface MessageDao{
     @Query("UPDATE messages SET content = :content, isEdited = 1 WHERE messageId = :messageId")
     suspend fun updateContent(messageId: String, content: String)
 
-    @Query("SELECT COUNT(*) FROM messages WHERE (senderId = :chatId OR receiverId = :chatId) AND messageType = 'IMAGE' AND isDeleted = 0")
-    suspend fun countMediaMessages(chatId: String): Int
+    @Query(
+        "SELECT COUNT(*) FROM messages WHERE isGroupThread = 0 AND " +
+            "(senderId = :chatId OR receiverId = :chatId) AND messageType = 'IMAGE' AND isDeleted = 0"
+    )
+    suspend fun countDmMediaMessages(chatId: String): Int
 
+    @Query(
+        "SELECT COUNT(*) FROM messages WHERE isGroupThread != 0 AND receiverId = :chatId AND " +
+            "messageType = 'IMAGE' AND isDeleted = 0"
+    )
+    suspend fun countGroupMediaMessages(chatId: String): Int
 }

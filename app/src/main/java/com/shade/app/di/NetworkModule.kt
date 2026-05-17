@@ -6,6 +6,7 @@ import com.shade.app.BuildConfig
 import com.shade.app.data.remote.api.AuditService
 import com.shade.app.data.remote.api.AuthService
 import com.shade.app.data.remote.api.GroupService
+import com.shade.app.data.remote.api.KeysService
 import com.shade.app.data.remote.api.MediaService
 import com.shade.app.data.remote.api.MessageService
 import com.shade.app.data.remote.api.TranslationService
@@ -123,6 +124,12 @@ object NetworkModule {
     @Singleton
     fun provideGroupService(retrofit: Retrofit): GroupService {
         return retrofit.create(GroupService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideKeysService(retrofit: Retrofit): KeysService {
+        return retrofit.create(KeysService::class.java)
     }
 
     @Provides

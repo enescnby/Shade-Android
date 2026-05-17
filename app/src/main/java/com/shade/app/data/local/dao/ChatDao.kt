@@ -37,6 +37,13 @@ interface ChatDao {
     @Query("UPDATE chats SET unreadCount = 0 WHERE chatId = :chatId")
     suspend fun resetUnreadCount(chatId: String)
 
+    @Query(
+        """UPDATE chats SET isGroup = :isGroup,
+            groupName = :groupName
+            WHERE chatId = :chatId"""
+    )
+    suspend fun patchGroupHints(chatId: String, isGroup: Boolean, groupName: String?): Int
+
     @Query("DELETE FROM chats WHERE chatId = :chatId")
     suspend fun deleteChat(chatId: String)
 }

@@ -34,6 +34,7 @@ import com.shade.app.ui.theme.TextSecondary
 fun ChatScreen(
     onBackClick: () -> Unit,
     onProfileClick: (String) -> Unit,
+    onGroupInfoClick: (String) -> Unit = {},
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -134,10 +135,12 @@ fun ChatScreen(
                 chatId = uiState.chatId,
                 shadeId = uiState.contactShadeId,
                 lastSeenText = uiState.lastSeenText,
+                isGroupChat = uiState.isGroupChat,
                 isSearchActive = uiState.isSearchActive,
                 searchQuery = uiState.searchQuery,
                 onBackClick = onBackClick,
                 onProfileClick = onProfileClick,
+                onGroupInfoClick = onGroupInfoClick,
                 onSearchToggle = { viewModel.toggleSearch() },
                 onSearchQueryChange = { viewModel.onSearchQueryChange(it) },
                 onShowBgPicker = { showBgPicker = true }

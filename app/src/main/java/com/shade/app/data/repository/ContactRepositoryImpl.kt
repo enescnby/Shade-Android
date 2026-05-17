@@ -2,6 +2,7 @@ package com.shade.app.data.repository
 
 import com.shade.app.data.local.dao.ContactDao
 import com.shade.app.data.local.entities.ContactEntity
+import com.shade.app.data.remote.api.KeysService
 import com.shade.app.data.remote.api.UserService
 import com.shade.app.domain.repository.ContactRepository
 import com.shade.app.security.KeyVaultManager
@@ -11,6 +12,7 @@ import javax.inject.Inject
 class ContactRepositoryImpl @Inject constructor(
     private val contactDao: ContactDao,
     private val userService: UserService,
+    private val keysService: KeysService,
     private val keyVaultManager: KeyVaultManager
 ) : ContactRepository {
     override suspend fun insertContact(contact: ContactEntity) {
@@ -67,6 +69,38 @@ class ContactRepositoryImpl @Inject constructor(
             } else local
         } catch (e: Exception) {
             local
+        }
+    }
+
+    override suspend fun getOrFetchContactByUserId(
+        userId: String,
+        bypassCache: Boolean,
+    ): ContactEntity? {
+        val existing = contactDao.getContactByUserId(userId)
+        if (!bypassCache && existing != null) return existing
+
+        return try {
+            val token = "Bearer ${keyVaultManager.getAccessToken()}"
+            val response = keysService.getKeys(token, userId)
+            if (!response.isSuccessful) return null
+            val body = response.body() ?: return null
+            val pubkey = body.publicKey.trim()
+            val contact =
+                existing?.copy(
+                    encryptionPublicKey = pubkey,
+                    shadeId = existing.shadeId.ifBlank { body.coreGuardId },
+                ) ?: ContactEntity(
+                    userId = userId,
+                    shadeId = body.coreGuardId,
+                    encryptionPublicKey = pubkey,
+                    savedName = null,
+                    profileName = null,
+                    profileImagePath = null,
+                )
+            contactDao.insertContact(contact)
+            contact
+        } catch (e: Exception) {
+            null
         }
     }
 

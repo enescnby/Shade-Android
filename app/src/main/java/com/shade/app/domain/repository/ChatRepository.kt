@@ -11,6 +11,12 @@ interface ChatRepository {
     fun observeChatWithContact(chatId: String): Flow<ChatWithContact?>
     suspend fun insertOrUpdateChat(chat: ChatEntity)
     suspend fun resetUnreadCount(chatId: String)
+    /**
+     * If [chatId] exists in `groups`, fix a mistaken `chats.isGroup=false` row
+     * created before we keyed off the group cache during chat upserts.
+     */
+    suspend fun alignChatRowFromGroupCache(chatId: String)
+
     suspend fun updateLastMessage(chatId: String, lastMessage: String, timestamp: Long)
     suspend fun updateChatWithNewMessage(chatId: String, lastMessage: String, timestamp: Long, isFromMe: Boolean = false)
     suspend fun deleteChat(chatId: String)

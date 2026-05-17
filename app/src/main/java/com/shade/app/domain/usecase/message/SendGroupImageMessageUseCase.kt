@@ -1,11 +1,17 @@
 package com.shade.app.domain.usecase.message
 
+import android.net.Uri
+import android.util.Base64
 import android.util.Log
+import com.google.gson.Gson
 import com.google.protobuf.ByteString
+import com.shade.app.crypto.MessageCryptoManager
 import com.shade.app.crypto.SenderKeyCryptoManager
 import com.shade.app.data.local.entities.MessageEntity
 import com.shade.app.data.local.entities.MessageStatus
+import com.shade.app.domain.model.ImageMessageContent
 import com.shade.app.domain.repository.ChatRepository
+import com.shade.app.domain.repository.ImageRepository
 import com.shade.app.domain.repository.MessageRepository
 import com.shade.app.domain.repository.SenderKeyRepository
 import com.shade.app.domain.usecase.group.DistributeSenderKeyUseCase
@@ -14,67 +20,85 @@ import com.shade.app.proto.EncryptedPayload
 import com.shade.app.proto.MessageType
 import com.shade.app.proto.WebSocketMessage
 import com.shade.app.security.KeyVaultManager
+import com.shade.app.util.ImageFileManager
+import com.shade.app.util.ImageProcessor
 import org.bouncycastle.util.encoders.Hex
+import java.security.SecureRandom
 import java.util.UUID
 import javax.inject.Inject
 
 /**
- * Sends a text message to a group using the **Sender Keys** scheme.
- *
- * Unlike the old per-member fan-out, the message is encrypted **once** under
- * the caller's own sender-key chain. The server fans the same ciphertext out
- * to every bound member-device queue via `shade.group`.
- *
- * Steps (see `API_CONTRACT.md` → "Send Algorithm"):
- *  1. Make sure our OwnSenderKey exists.
- *  2. Ship the current SKDM to any peer that doesn't already have it.
- *  3. Derive msg_key + new chain_key from the current chain root.
- *  4. AEAD-encrypt the plaintext with AAD bound to (group, device, key_id, idx).
- *  5. Sign the frame with our Ed25519 signing key.
- *  6. Wrap as [EncryptedPayload] and send a single WS message.
- *  7. Advance the chain ratchet (++chain_index, chain_key ← HKDF chain).
+ * Grup görseli: gövde JSON’u sender-key ratchet ile şifrelenir; CDN’deki blob
+ * ise rastgele bir simetrik anahtarla korunur (`imageKeyHex`, JSON içinde).
+ * Böylece alıcılar indirirken zinciri yeniden oynatmak zorunda kalmazlar.
  */
-class SendGroupMessageUseCase @Inject constructor(
+class SendGroupImageMessageUseCase @Inject constructor(
     private val ensureOwnKey: EnsureOwnSenderKeyUseCase,
     private val distributeSenderKey: DistributeSenderKeyUseCase,
     private val senderKeyCrypto: SenderKeyCryptoManager,
     private val senderKeyRepository: SenderKeyRepository,
     private val messageRepository: MessageRepository,
     private val chatRepository: ChatRepository,
+    private val imageRepository: ImageRepository,
+    private val pairwiseCrypto: MessageCryptoManager,
     private val keyVaultManager: KeyVaultManager,
+    private val imageProcessor: ImageProcessor,
+    private val imageFileManager: ImageFileManager,
 ) {
+    private val gson = Gson()
+    private val random = SecureRandom()
+
     suspend operator fun invoke(
         groupId: String,
-        groupName: String,
-        text: String,
+        @Suppress("UNUSED_PARAMETER") groupName: String,
+        imageUri: Uri,
     ): Result<Unit> = runCatching {
+        val compressedBytes = imageProcessor.compressImage(imageUri)
+        val thumbnailBytes = imageProcessor.generateThumbnail(imageUri)
+        val (width, height) = imageProcessor.getImageDimensions(imageUri)
+
+        val imageKey = ByteArray(32).also(random::nextBytes)
+        val imageKeyHex = Hex.toHexString(imageKey)
+        val (encryptedImageBytes, imageNonce) = pairwiseCrypto.encryptBytes(compressedBytes, imageKeyHex)
+
+        val uploadResult = imageRepository.uploadEncryptedImage(encryptedImageBytes)
+        val uploadResponse = uploadResult.getOrElse { throw it }
+
         val myUserId = keyVaultManager.getUserId() ?: error("Missing user_id")
         val myShadeId = keyVaultManager.getShadeId() ?: error("Missing shade_id")
         val myDeviceId = keyVaultManager.getDeviceId()
             ?: error("Missing device_id — re-login required for group messaging")
 
-        // 1. Own sender key
         val ownKey = ensureOwnKey(groupId)
-
-        // 2. Ship SKDM to peers that don't have it yet (cheap if already done).
         distributeSenderKey(ownKey, force = false)
 
-        // 3. Derive ratchet keys
         val chainKey = Hex.decode(ownKey.chainKeyHex)
         val msgKey = senderKeyCrypto.deriveMessageKey(chainKey)
         val nextChainKey = senderKeyCrypto.deriveNextChainKey(chainKey)
 
-        // 4. AEAD with AAD = group_id || sender_device_id || key_id || chain_index
         val aad = senderKeyCrypto.buildAad(
             groupId = groupId,
             senderDeviceId = myDeviceId,
             keyId = ownKey.keyId,
             chainIndex = ownKey.chainIndex,
         )
-        val plaintext = text.toByteArray(Charsets.UTF_8)
-        val ciphertext = senderKeyCrypto.aeadEncrypt(plaintext, msgKey, aad)
 
-        // 5. Ed25519 sign
+        val msgId = UUID.randomUUID().toString()
+        val ts = System.currentTimeMillis()
+
+        val imageContent = ImageMessageContent(
+            imageId = uploadResponse.imageId,
+            thumbnailBase64 = Base64.encodeToString(thumbnailBytes, Base64.NO_WRAP),
+            imageNonceHex = Hex.toHexString(imageNonce),
+            width = width,
+            height = height,
+            sizeBytes = compressedBytes.size.toLong(),
+            imageKeyHex = imageKeyHex,
+        )
+        val contentJson = gson.toJson(imageContent)
+        val plaintext = contentJson.toByteArray(Charsets.UTF_8)
+
+        val ciphertext = senderKeyCrypto.aeadEncrypt(plaintext, msgKey, aad)
         val signature = senderKeyCrypto.signGroupPayload(
             signingPrivateKey = Hex.decode(ownKey.signingPrivateKeyHex),
             ciphertextWithTag = ciphertext.body,
@@ -84,10 +108,6 @@ class SendGroupMessageUseCase @Inject constructor(
             chainIndex = ownKey.chainIndex,
         )
 
-        val msgId = UUID.randomUUID().toString()
-        val ts = System.currentTimeMillis()
-
-        // 6. Build + send the EncryptedPayload (single fan-out via server).
         val payload = EncryptedPayload.newBuilder()
             .setMessageId(msgId)
             .setSenderId(myUserId)
@@ -100,40 +120,43 @@ class SendGroupMessageUseCase @Inject constructor(
             .setNonce(ByteString.copyFrom(ciphertext.nonce))
             .setSignature(ByteString.copyFrom(signature))
             .setTimestamp(ts)
-            .setType(MessageType.TEXT)
+            .setType(MessageType.IMAGE)
             .build()
 
-        val wsMsg = WebSocketMessage.newBuilder().setPayload(payload).build()
-        val sent = messageRepository.sendWebsocketMessage(wsMsg)
+        val sent = messageRepository.sendWebsocketMessage(
+            WebSocketMessage.newBuilder().setPayload(payload).build(),
+        )
 
-        // 7. Advance ratchet (success or failure — we don't reuse a key index).
         senderKeyRepository.advanceOwn(
             groupId = groupId,
             chainKeyHex = Hex.toHexString(nextChainKey),
             chainIndex = ownKey.chainIndex + 1,
         )
 
+        val thumbnailPath = imageFileManager.saveThumbnail(msgId, thumbnailBytes)
+        val imagePath = imageFileManager.saveDecryptedImage(msgId, compressedBytes)
+
         val entity = MessageEntity(
             messageId = msgId,
             senderId = myShadeId,
             receiverId = groupId,
             isGroupThread = true,
-            content = text,
+            content = contentJson,
             timestamp = ts,
-            messageType = com.shade.app.data.local.entities.MessageType.TEXT,
+            messageType = com.shade.app.data.local.entities.MessageType.IMAGE,
             status = if (sent) MessageStatus.SENT else MessageStatus.FAILED,
+            thumbnailPath = thumbnailPath,
+            imagePath = imagePath,
         )
         messageRepository.insertMessage(entity)
-        chatRepository.updateLastMessage(
-            chatId = groupId,
-            lastMessage = text,
-            timestamp = ts,
-        )
 
-        if (!sent) Log.w(TAG, "WebSocket send failed for group message $msgId")
-    }.onFailure { Log.e(TAG, "Group send failed: ${it.message}", it) }
+        val preview = "\uD83D\uDCF7 Fotoğraf"
+        chatRepository.updateLastMessage(chatId = groupId, lastMessage = preview, timestamp = ts)
+
+        if (!sent) Log.w(TAG, "WebSocket send failed for group image $msgId")
+    }.onFailure { Log.e(TAG, "Group image send failed: ${it.message}", it) }
 
     private companion object {
-        private const val TAG = "SendGroupMsg"
+        private const val TAG = "SendGroupImage"
     }
 }

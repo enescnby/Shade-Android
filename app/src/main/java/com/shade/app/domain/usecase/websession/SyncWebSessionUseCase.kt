@@ -51,7 +51,11 @@ class SyncWebSessionUseCase @Inject constructor(
 
         for (chat in chats) {
             val contactShadeId = chat.chatId
-            val messages = messageDao.getMessagesForChat(contactShadeId).first()
+            val messages = if (chat.isGroup) {
+                messageDao.getGroupMessagesForChat(contactShadeId).first()
+            } else {
+                messageDao.getDmMessagesForChat(contactShadeId).first()
+            }
             if (messages.isEmpty()) continue
 
             val items = messages.map { msg ->

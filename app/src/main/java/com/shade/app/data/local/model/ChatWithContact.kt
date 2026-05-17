@@ -12,11 +12,23 @@ data class ChatWithContact(
         entityColumn = "shadeId"
     ) val contact: ContactEntity?
 ) {
-    /** Sohbet listesi ve chat başlığı için: sadece kullanıcının kaydettiği isim ya da Shade ID */
+    /**
+     * What to show in the chat list / chat header.
+     *  - Group chats: backend-provided group name (chat.groupName).
+     *  - 1-to-1:      user-saved name → fallback to shadeId / chatId.
+     */
     val displayName: String
-        get() = contact?.savedName ?: contact?.shadeId ?: chat.chatId
+        get() = if (chat.isGroup) {
+            chat.groupName ?: chat.chatId
+        } else {
+            contact?.savedName ?: contact?.shadeId ?: chat.chatId
+        }
 
-    /** Profil ekranı için: kayıtlı isim → profil adı → shadeId */
+    /** Profil ekranı için: kayıtlı isim → profil adı → shadeId. Gruplar için groupName. */
     val fullDisplayName: String
-        get() = contact?.savedName ?: contact?.profileName ?: contact?.shadeId ?: chat.chatId
+        get() = if (chat.isGroup) {
+            chat.groupName ?: chat.chatId
+        } else {
+            contact?.savedName ?: contact?.profileName ?: contact?.shadeId ?: chat.chatId
+        }
 }

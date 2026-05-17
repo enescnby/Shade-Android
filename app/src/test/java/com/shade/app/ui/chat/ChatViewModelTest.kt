@@ -7,10 +7,11 @@ import com.shade.app.data.local.entities.MessageEntity
 import com.shade.app.data.local.entities.MessageStatus
 import com.shade.app.data.local.entities.MessageType
 import com.shade.app.data.preferences.TranslationConsentRepository
-import com.shade.app.data.remote.api.UserService
 import com.shade.app.data.repository.ChatPrefsRepository
 import com.shade.app.data.repository.TranslationRepository
 import com.shade.app.domain.repository.ChatRepository
+import com.shade.app.domain.repository.ContactRepository
+import com.shade.app.domain.repository.GroupRepository
 import com.shade.app.domain.repository.MessageRepository
 import com.shade.app.domain.usecase.message.DeleteMessageForEveryoneUseCase
 import com.shade.app.domain.usecase.message.DownloadFileUseCase
@@ -19,6 +20,8 @@ import com.shade.app.domain.usecase.message.EditMessageUseCase
 import com.shade.app.domain.usecase.message.MarkChatAsReadUseCase
 import com.shade.app.domain.usecase.message.SendAudioMessageUseCase
 import com.shade.app.domain.usecase.message.SendFileMessageUseCase
+import com.shade.app.domain.usecase.message.SendGroupImageMessageUseCase
+import com.shade.app.domain.usecase.message.SendGroupMessageUseCase
 import com.shade.app.domain.usecase.message.SendImageMessageUseCase
 import com.shade.app.domain.usecase.message.SendMessageUseCase
 import com.shade.app.security.KeyVaultManager
@@ -33,7 +36,12 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import org.mockito.kotlin.*
+import org.mockito.kotlin.any
+import org.mockito.kotlin.coWhenever
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 
 class ChatViewModelTest {
 
@@ -43,6 +51,8 @@ class ChatViewModelTest {
     // ── Bağımlılıklar ─────────────────────────────────────────────────────────
     private val messageRepository: MessageRepository = mock()
     private val sendMessageUseCase: SendMessageUseCase = mock()
+    private val sendGroupMessageUseCase: SendGroupMessageUseCase = mock()
+    private val sendGroupImageMessageUseCase: SendGroupImageMessageUseCase = mock()
     private val sendImageMessageUseCase: SendImageMessageUseCase = mock()
     private val downloadImageUseCase: DownloadImageUseCase = mock()
     private val markChatAsReadUseCase: MarkChatAsReadUseCase = mock()
@@ -52,8 +62,9 @@ class ChatViewModelTest {
     private val sendFileMessageUseCase: SendFileMessageUseCase = mock()
     private val downloadFileUseCase: DownloadFileUseCase = mock()
     private val chatRepository: ChatRepository = mock()
+    private val groupRepository: GroupRepository = mock()
+    private val contactRepository: ContactRepository = mock()
     private val keyVaultManager: KeyVaultManager = mock()
-    private val userService: UserService = mock()
     private val translationRepository: TranslationRepository = mock()
     private val translationConsentRepository: TranslationConsentRepository = mock()
     private val activeChatTracker: ActiveChatTracker = mock()
@@ -72,25 +83,26 @@ class ChatViewModelTest {
     @Before
     fun setUp() = runBlocking {
         // Flow bağımlılıkları — init() içindeki observer'lar için gerekli
-        whenever(messageRepository.getMessagesForChat(any())).thenReturn(flowOf(emptyList()))
-        whenever(messageRepository.getMessagesForChatPaged(any())).thenReturn(flowOf(PagingData.empty()))
+        whenever(messageRepository.getMessagesForChat(any(), any())).thenReturn(flowOf(emptyList()))
+        whenever(messageRepository.getMessagesForChatPaged(any(), any())).thenReturn(flowOf(PagingData.empty()))
         whenever(chatRepository.observeChatWithContact(any())).thenReturn(flowOf(null))
+        whenever(groupRepository.observeCachedGroup(any())).thenReturn(flowOf(null))
         whenever(chatPrefsRepository.getChatBackground(any())).thenReturn(flowOf(null))
         whenever(chatPrefsRepository.getAutoDeleteMinutes(any())).thenReturn(flowOf(0))
         whenever(translationConsentRepository.disclaimerAccepted).thenReturn(flowOf(false))
 
         // Suspend fonksiyonlar — runBlocking içinde stublanır
         whenever(keyVaultManager.getShadeId()).thenReturn(MY_SHADE_ID)
-        whenever(keyVaultManager.getAccessToken()).thenReturn("access_token")
-        // getUserStatus non-fatal; exception throw edilse de ViewModel bunu handle eder
-        whenever(userService.getUserStatus(any(), any())).thenThrow(RuntimeException("offline"))
-
+        coWhenever { contactRepository.getOrFetchContact(any()) }.thenReturn(null)
+        coWhenever { chatRepository.alignChatRowFromGroupCache(any()) }.then { }
         val savedStateHandle = SavedStateHandle(
             mapOf("chatId" to CHAT_ID, "chatName" to CHAT_NAME)
         )
         viewModel = ChatViewModel(
             messageRepository                = messageRepository,
             sendMessageUseCase               = sendMessageUseCase,
+            sendGroupMessageUseCase          = sendGroupMessageUseCase,
+            sendGroupImageMessageUseCase     = sendGroupImageMessageUseCase,
             sendImageMessageUseCase          = sendImageMessageUseCase,
             downloadImageUseCase             = downloadImageUseCase,
             markChatAsReadUseCase            = markChatAsReadUseCase,
@@ -100,8 +112,9 @@ class ChatViewModelTest {
             sendFileMessageUseCase           = sendFileMessageUseCase,
             downloadFileUseCase              = downloadFileUseCase,
             chatRepository                   = chatRepository,
+            groupRepository                  = groupRepository,
+            contactRepository                = contactRepository,
             keyVaultManager                  = keyVaultManager,
-            userService                      = userService,
             translationRepository            = translationRepository,
             translationConsentRepository     = translationConsentRepository,
             activeChatTracker                = activeChatTracker,
@@ -226,15 +239,15 @@ class ChatViewModelTest {
     fun `onSearchQueryChange with blank input clears results and skips repository`() = runTest {
         viewModel.onSearchQueryChange("  ")
         assertThat(viewModel.uiState.value.searchResults).isEmpty()
-        verify(messageRepository, never()).searchMessages(any(), any())
+        verify(messageRepository, never()).searchMessages(any(), any(), any())
     }
 
     @Test
     fun `onSearchQueryChange with non-blank query triggers repository search`() = runTest {
-        whenever(messageRepository.searchMessages(any(), any())).thenReturn(flowOf(emptyList()))
+        whenever(messageRepository.searchMessages(any(), any(), any())).thenReturn(flowOf(emptyList()))
         viewModel.onSearchQueryChange("hello")
         advanceUntilIdle()
-        verify(messageRepository).searchMessages(CHAT_ID, "hello")
+        verify(messageRepository).searchMessages(CHAT_ID, "hello", false)
     }
 
     // ── Okunmamış bildirim ────────────────────────────────────────────────────
