@@ -9,12 +9,14 @@ import com.shade.app.data.local.converters.RoomConverters
 import com.shade.app.data.local.dao.ChatDao
 import com.shade.app.data.local.dao.ContactDao
 import com.shade.app.data.local.dao.GroupDao
+import com.shade.app.data.local.dao.GroupReadReceiptDao
 import com.shade.app.data.local.dao.MessageDao
 import com.shade.app.data.local.dao.SenderKeyDao
 import com.shade.app.data.local.entities.ChatEntity
 import com.shade.app.data.local.entities.ContactEntity
 import com.shade.app.data.local.entities.GroupEntity
 import com.shade.app.data.local.entities.GroupMemberEntity
+import com.shade.app.data.local.entities.GroupReadReceiptEntity
 import com.shade.app.data.local.entities.MessageEntity
 import com.shade.app.data.local.entities.OwnSenderKeyEntity
 import com.shade.app.data.local.entities.PeerSenderKeyEntity
@@ -135,6 +137,20 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
     }
 }
 
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `group_read_receipts` (
+                `messageId` TEXT NOT NULL,
+                `readerShadeId` TEXT NOT NULL,
+                PRIMARY KEY(`messageId`, `readerShadeId`)
+            )
+            """.trimIndent()
+        )
+    }
+}
+
 /** Grup mesajlarını DM listesi sorgusundan ayırmak için `messages.isGroupThread`. */
 val MIGRATION_8_9 = object : Migration(8, 9) {
     override fun migrate(database: SupportSQLiteDatabase) {
@@ -157,8 +173,9 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
         OwnSenderKeyEntity::class,
         PeerSenderKeyEntity::class,
         SkdmDispatchedEntity::class,
+        GroupReadReceiptEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 @TypeConverters(RoomConverters::class)
@@ -168,4 +185,5 @@ abstract class ShadeDatabase : RoomDatabase() {
     abstract fun contactDao(): ContactDao
     abstract fun groupDao(): GroupDao
     abstract fun senderKeyDao(): SenderKeyDao
+    abstract fun groupReadReceiptDao(): GroupReadReceiptDao
 }

@@ -21,6 +21,7 @@ import com.shade.app.domain.usecase.message.EditMessageUseCase
 import com.shade.app.domain.usecase.message.MarkChatAsReadUseCase
 import com.shade.app.domain.usecase.message.SendAudioMessageUseCase
 import com.shade.app.domain.usecase.message.SendFileMessageUseCase
+import com.shade.app.domain.usecase.message.SendGroupAudioMessageUseCase
 import com.shade.app.domain.usecase.message.SendGroupImageMessageUseCase
 import com.shade.app.domain.usecase.message.SendGroupMessageUseCase
 import com.shade.app.domain.usecase.message.SendImageMessageUseCase
@@ -49,6 +50,7 @@ data class ChatUiState(
     val chatName: String = "",
     val chatId: String = "",
     val contactShadeId: String? = null,
+    val contactImagePath: String? = null,
     val isGroupChat: Boolean = false,
     val myShadeId: String = "",
     val initialScrollIndex: Int? = null,
@@ -74,7 +76,13 @@ data class ChatUiState(
     val replyingToMessage: MessageEntity? = null,
     // Chat customisation
     val chatBackgroundColor: Int? = null,   // ARGB int, null = default
-    val errorMessage: String? = null        // Snackbar mesajı — null = gösterme
+    val errorMessage: String? = null,       // Snackbar mesajı — null = gösterme
+    /** Grup sohbetinde senderId → görünen ad haritası */
+    val groupSenderNames: Map<String, String> = emptyMap(),
+    /** Grup sohbetinde senderId → shadeId haritası (ikinci satır için) */
+    val groupSenderShadeIds: Map<String, String> = emptyMap(),
+    /** Kullanıcının bu grupta hâlâ üye olup olmadığı; 1:1 sohbetlerde her zaman true */
+    val isGroupMember: Boolean = true,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -84,6 +92,7 @@ class ChatViewModel @Inject constructor(
     private val sendMessageUseCase: SendMessageUseCase,
     private val sendGroupMessageUseCase: SendGroupMessageUseCase,
     private val sendGroupImageMessageUseCase: SendGroupImageMessageUseCase,
+    private val sendGroupAudioMessageUseCase: SendGroupAudioMessageUseCase,
     private val sendImageMessageUseCase: SendImageMessageUseCase,
     private val downloadImageUseCase: DownloadImageUseCase,
     private val markChatAsReadUseCase: MarkChatAsReadUseCase,
@@ -201,7 +210,22 @@ class ChatViewModel @Inject constructor(
                     hasCalculatedInitialScroll = true
                 }
 
-                _uiState.update { it.copy(messages = messages) }
+                // Gönderen adlarını çek (grup ve 1:1 — isGroupChat state'i henüz gelmemiş olabilir)
+                val uniqueSenders = messages
+                    .filter { it.senderId != myId }
+                    .map { it.senderId }
+                    .distinct()
+                data class SenderInfo(val displayName: String, val shadeId: String)
+                val senderInfos: Map<String, SenderInfo> = uniqueSenders.associateWith { senderId ->
+                    val contact = contactRepository.getOrFetchContact(senderId)
+                    val shadeId = contact?.shadeId ?: senderId
+                    val displayName = contact?.let { c -> c.savedName ?: c.profileName ?: c.shadeId } ?: senderId
+                    SenderInfo(displayName, shadeId)
+                }
+                val senderNames = senderInfos.mapValues { it.value.displayName }
+                val senderShadeIds = senderInfos.mapValues { it.value.shadeId }
+
+                _uiState.update { it.copy(messages = messages, groupSenderNames = senderNames, groupSenderShadeIds = senderShadeIds) }
 
                 val hasUnread = messages.any {
                     it.senderId != myId && it.status != MessageStatus.READ
@@ -217,8 +241,9 @@ class ChatViewModel @Inject constructor(
         combine(
             chatRepository.observeChatWithContact(chatId),
             groupRepository.observeCachedGroup(chatId),
-        ) { cw, grp -> cw to grp }
-            .onEach { (chatWithContact, cachedGroup) ->
+            groupRepository.observeCachedMembers(chatId),
+        ) { cw, grp, members -> Triple(cw, grp, members) }
+            .onEach { (chatWithContact, cachedGroup, members) ->
                 // `chats.isGroup` is wrong if the chat row was first created via
                 // inbound message helpers that forgot the flag — also trust the
                 // groups table backing `observeCachedGroup`.
@@ -234,7 +259,9 @@ class ChatViewModel @Inject constructor(
                     }
                 }
 
-                if (!isGroupChat && chatWithContact != null && !prefetchedDmPeerProfile) {
+                val photoMissing = chatWithContact?.contact?.profileImagePath
+                    ?.let { java.io.File(it).exists() } != true
+                if (!isGroupChat && chatWithContact != null && (!prefetchedDmPeerProfile || photoMissing)) {
                     prefetchedDmPeerProfile = true
                     viewModelScope.launch {
                         contactRepository.getOrFetchContact(chatId)
@@ -248,9 +275,17 @@ class ChatViewModel @Inject constructor(
                             ?: initialChatName.takeIf { it.isNotBlank() }
                             ?: chatId
                     else ->
-                        chatWithContact?.displayName?.takeIf { it.isNotBlank() }
+                        chatWithContact?.headerName?.takeIf { it.isNotBlank() }
                             ?: initialChatName.takeIf { it.isNotBlank() }
                             ?: chatId
+                }
+
+                // Kullanıcının grupta üye olup olmadığını kontrol et
+                val isGroupMember = if (isGroupChat) {
+                    val myId = _uiState.value.myShadeId
+                    members.any { it.shadeId == myId || it.userId == myId }
+                } else {
+                    true
                 }
 
                 _uiState.update {
@@ -258,7 +293,10 @@ class ChatViewModel @Inject constructor(
                         chatName = headerTitle,
                         contactShadeId =
                             if (!isGroupChat) chatWithContact?.contact?.shadeId else null,
+                        contactImagePath =
+                            if (!isGroupChat) chatWithContact?.contact?.profileImagePath else null,
                         isGroupChat = isGroupChat,
+                        isGroupMember = isGroupMember,
                     )
                 }
             }
@@ -338,33 +376,42 @@ class ChatViewModel @Inject constructor(
     fun sendImage(uri: Uri) {
         viewModelScope.launch {
             _uiState.update { it.copy(isSendingImage = true, errorMessage = null) }
-            val result = if (_uiState.value.isGroupChat) {
-                sendGroupImageMessageUseCase(
-                    groupId = chatId,
-                    groupName = _uiState.value.chatName,
-                    imageUri = uri,
-                )
-            } else {
-                sendImageMessageUseCase(receiverShadeId = chatId, imageUri = uri)
-            }
-            _uiState.update { it.copy(isSendingImage = false) }
-            result.onFailure { e ->
+            try {
+                if (_uiState.value.isGroupChat) {
+                    sendGroupImageMessageUseCase(
+                        groupId = chatId,
+                        groupName = _uiState.value.chatName,
+                        imageUri = uri,
+                    )
+                } else {
+                    sendImageMessageUseCase(receiverShadeId = chatId, imageUri = uri)
+                }
+            } catch (e: Exception) {
                 Log.e(TAG, "Görsel gönderilemedi: ${e.message}", e)
                 _uiState.update {
                     it.copy(errorMessage = "Görsel gönderilemedi: ${e.message ?: "Bilinmeyen hata"}")
                 }
             }
+            _uiState.update { it.copy(isSendingImage = false) }
         }
     }
 
     fun sendAudio(audioFile: File, durationMs: Long) {
         viewModelScope.launch {
             _uiState.update { it.copy(isSendingAudio = true, errorMessage = null) }
-            val result = sendAudioMessageUseCase(
-                receiverShadeId = chatId,
-                audioFile = audioFile,
-                durationMs = durationMs
-            )
+            val result = if (_uiState.value.isGroupChat) {
+                sendGroupAudioMessageUseCase(
+                    groupId = chatId,
+                    audioFile = audioFile,
+                    durationMs = durationMs,
+                )
+            } else {
+                sendAudioMessageUseCase(
+                    receiverShadeId = chatId,
+                    audioFile = audioFile,
+                    durationMs = durationMs,
+                )
+            }
             _uiState.update { it.copy(isSendingAudio = false) }
             result.onFailure { e ->
                 Log.e(TAG, "Ses mesajı gönderilemedi: ${e.message}", e)

@@ -78,6 +78,7 @@ class MessageRepositoryImpl @Inject constructor(
     }
 
     override suspend fun deleteMessage(message: MessageEntity) = messageDao.deleteMessage(message)
+    override suspend fun deleteAllGroupMessages(groupId: String) = messageDao.deleteAllGroupMessages(groupId)
 
     override fun searchMessages(chatId: String, query: String, isGroupThread: Boolean): Flow<List<MessageEntity>> =
         if (isGroupThread) messageDao.searchGroupMessages(chatId, query)
@@ -97,4 +98,8 @@ class MessageRepositoryImpl @Inject constructor(
 
     override suspend fun updateFilePath(messageId: String, path: String) =
         messageDao.updateFilePath(messageId, path)
+
+    override suspend fun getMediaMessages(chatId: String, isGroupThread: Boolean): List<MessageEntity> =
+        if (isGroupThread) messageDao.getGroupMediaMessages(chatId)
+        else messageDao.getDmMediaMessages(chatId)
 }

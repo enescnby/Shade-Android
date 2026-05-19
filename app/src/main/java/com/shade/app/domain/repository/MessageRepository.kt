@@ -24,10 +24,12 @@ interface MessageRepository {
     suspend fun getMessageStatus(messageId: String): MessageStatus?
     suspend fun updateMessageStatusIfForward(messageId: String, newStatus: MessageStatus)
     suspend fun deleteMessage(message: MessageEntity)
+    suspend fun deleteAllGroupMessages(groupId: String)
     fun searchMessages(chatId: String, query: String, isGroupThread: Boolean): Flow<List<MessageEntity>>
     suspend fun markAsDeleted(messageId: String)
     suspend fun updateMessageContent(messageId: String, content: String)
     suspend fun countMediaMessages(chatId: String, isGroupThread: Boolean): Int
+    suspend fun getMediaMessages(chatId: String, isGroupThread: Boolean): List<MessageEntity>
     suspend fun updateAudioPath(messageId: String, path: String, durationMs: Long)
     suspend fun updateFilePath(messageId: String, path: String)
 }

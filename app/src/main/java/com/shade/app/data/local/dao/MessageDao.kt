@@ -85,11 +85,27 @@ interface MessageDao {
     @Delete
     suspend fun deleteMessage(message: MessageEntity)
 
+    @Query("DELETE FROM messages WHERE isGroupThread != 0 AND receiverId = :groupId")
+    suspend fun deleteAllGroupMessages(groupId: String)
+
     @Query("UPDATE messages SET isDeleted = 1 WHERE messageId = :messageId")
     suspend fun markAsDeleted(messageId: String)
 
     @Query("UPDATE messages SET content = :content, isEdited = 1 WHERE messageId = :messageId")
     suspend fun updateContent(messageId: String, content: String)
+
+    @Query(
+        "SELECT * FROM messages WHERE isGroupThread != 0 AND receiverId = :chatId AND " +
+            "messageType = 'IMAGE' AND isDeleted = 0 ORDER BY timestamp DESC LIMIT 30"
+    )
+    suspend fun getGroupMediaMessages(chatId: String): List<MessageEntity>
+
+    @Query(
+        "SELECT * FROM messages WHERE isGroupThread = 0 AND " +
+            "(senderId = :chatId OR receiverId = :chatId) AND " +
+            "messageType = 'IMAGE' AND isDeleted = 0 ORDER BY timestamp DESC LIMIT 30"
+    )
+    suspend fun getDmMediaMessages(chatId: String): List<MessageEntity>
 
     @Query(
         "SELECT COUNT(*) FROM messages WHERE isGroupThread = 0 AND " +
