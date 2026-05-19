@@ -207,7 +207,7 @@ class ReceiveGroupMessageUseCase @Inject constructor(
         val previewBody = when (msgType) {
             com.shade.app.data.local.entities.MessageType.IMAGE -> "📷 Fotoğraf"
             com.shade.app.data.local.entities.MessageType.AUDIO -> "🎤 Ses mesajı"
-            com.shade.app.data.local.entities.MessageType.FILE -> "퓎 Dosya"
+            com.shade.app.data.local.entities.MessageType.FILE -> "📄 Dosya"
             else -> plaintext
         }
         val lastMessagePreview = "$senderLabel: $previewBody"
