@@ -75,17 +75,8 @@ fun SettingsScreen(
 ) {
     val loggedOut by viewModel.loggedOut.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
-    val seedStatus by viewModel.seedStatus.collectAsState()
-
     LaunchedEffect(loggedOut) {
         if (loggedOut) onLogout()
-    }
-
-    seedStatus?.let { msg ->
-        LaunchedEffect(msg) {
-            kotlinx.coroutines.delay(3000)
-            viewModel.clearSeedStatus()
-        }
     }
 
     val context = LocalContext.current
@@ -293,19 +284,6 @@ fun SettingsScreen(
                 HorizontalDivider(
                     modifier = Modifier.padding(vertical = 8.dp),
                     color = scheme.outlineVariant
-                )
-            }
-            item {
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 8.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant
-                )
-                SettingsItem(
-                    title = seedStatus ?: "Veri Seti Oluştur",
-                    subtitle = "Sahte kişiler ve mesajlar ekler (demo için)",
-                    icon = Icons.Default.People,
-                    iconTint = AccentPurple,
-                    onClick = { if (seedStatus == null) viewModel.seedDatabase() }
                 )
             }
             item {

@@ -15,6 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.shade.app.ui.components.AvatarImage
 import com.shade.app.ui.theme.*
 
 @Composable
@@ -22,6 +24,7 @@ fun ChatTopBar(
     chatName: String,
     chatId: String,
     shadeId: String?,
+    contactImagePath: String?,
     lastSeenText: String,
     isGroupChat: Boolean,
     isSearchActive: Boolean,
@@ -45,6 +48,7 @@ fun ChatTopBar(
                 chatName = chatName,
                 chatId = chatId,
                 shadeId = shadeId,
+                contactImagePath = contactImagePath,
                 lastSeenText = lastSeenText,
                 isGroupChat = isGroupChat,
                 onBackClick = onBackClick,
@@ -98,6 +102,7 @@ private fun NormalBar(
     chatName: String,
     chatId: String,
     shadeId: String?,
+    contactImagePath: String?,
     lastSeenText: String,
     isGroupChat: Boolean,
     onBackClick: () -> Unit,
@@ -119,24 +124,19 @@ private fun NormalBar(
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Geri", tint = MaterialTheme.colorScheme.onSurface)
         }
 
-        Surface(modifier = Modifier.size(40.dp), shape = CircleShape, color = BubbleMine) {
-            Box(contentAlignment = Alignment.Center) {
-                if (isGroupChat) {
-                    Icon(
-                        Icons.Default.Group,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
-                } else {
-                    Text(
-                        text = chatName.take(1).uppercase(),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+        if (isGroupChat) {
+            Surface(modifier = Modifier.size(40.dp), shape = CircleShape, color = BubbleMine) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Group, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
                 }
             }
+        } else {
+            AvatarImage(
+                imagePath = contactImagePath,
+                fallbackLetter = chatName,
+                size = 40.dp,
+                fontSize = 16.sp
+            )
         }
 
         Spacer(modifier = Modifier.width(12.dp))
@@ -149,7 +149,7 @@ private fun NormalBar(
                 }
         ) {
             Text(chatName, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-            if (!isGroupChat && !shadeId.isNullOrBlank() && shadeId != chatName) {
+            if (!isGroupChat && !shadeId.isNullOrBlank()) {
                 Text(
                     text = shadeId,
                     style = MaterialTheme.typography.labelSmall,

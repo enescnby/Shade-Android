@@ -1,7 +1,9 @@
 package com.shade.app.ui.home
 
 import android.util.Log
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,9 +24,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.shade.app.R
 import com.shade.app.data.local.model.ChatWithContact
+import com.shade.app.ui.components.AvatarImage
 import com.shade.app.ui.theme.AccentPurple
 import com.shade.app.ui.theme.BubbleMine
 import java.text.SimpleDateFormat
@@ -177,12 +181,15 @@ fun HomeScreen(
                             items = uiState.chats,
                             key = { it.chat.chatId }
                         ) { chat ->
+                            val isNonMember = chat.chat.chatId in uiState.nonMemberGroupIds
                             ChatItem(
                                 chat = chat,
+                                canDelete = !chat.chat.isGroup || isNonMember,
                                 onClick = {
                                     Log.d(TAG, "Sohbete tıklandı: ${chat.chat.chatId}")
                                     onChatClick(chat.chat.chatId, chat.displayName)
-                                }
+                                },
+                                onLongClick = { viewModel.deleteChat(chat) }
                             )
                         }
                     }
@@ -247,16 +254,42 @@ private fun EmptyHomeState() {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ChatItem(
     chat: ChatWithContact,
-    onClick: () -> Unit
+    canDelete: Boolean = true,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit = {}
 ) {
     val scheme = MaterialTheme.colorScheme
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    if (showDeleteDialog && canDelete) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Sohbeti sil?") },
+            text = { Text("${chat.displayName} sohbeti ve tüm mesajları silinecek.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteDialog = false
+                    onLongClick()
+                }) { Text("Sil", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) { Text("İptal") }
+            }
+        )
+    }
+
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = { if (canDelete) showDeleteDialog = true }
+            ),
         color = Color.Transparent,
-        onClick = onClick
     ) {
         Row(
             modifier = Modifier
@@ -264,28 +297,19 @@ fun ChatItem(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                modifier = Modifier.size(52.dp),
-                shape = CircleShape,
-                color = BubbleMine
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    if (chat.chat.isGroup) {
-                        Icon(
-                            Icons.Default.Group,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(26.dp)
-                        )
-                    } else {
-                        Text(
-                            text = chat.displayName.take(1).uppercase(Locale.getDefault()),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
+            if (chat.chat.isGroup) {
+                Surface(modifier = Modifier.size(52.dp), shape = CircleShape, color = BubbleMine) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Group, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
                     }
                 }
+            } else {
+                AvatarImage(
+                    imagePath = chat.contact?.profileImagePath,
+                    fallbackLetter = chat.displayName,
+                    size = 52.dp,
+                    fontSize = 22.sp
+                )
             }
 
             Spacer(modifier = Modifier.width(14.dp))
@@ -315,9 +339,16 @@ fun ChatItem(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val rawLastMessage = chat.chat.lastMessage
+                    val previewText = when {
+                        rawLastMessage == null -> stringResource(R.string.home_last_message_placeholder)
+                        rawLastMessage.trimStart().startsWith("{") && rawLastMessage.contains("imageId") -> "📷 Fotoğraf"
+                        rawLastMessage.trimStart().startsWith("{") && rawLastMessage.contains("audioId") -> "🎤 Ses mesajı"
+                        rawLastMessage.trimStart().startsWith("{") && rawLastMessage.contains("fileId") -> "📎 Dosya"
+                        else -> rawLastMessage
+                    }
                     Text(
-                        text = chat.chat.lastMessage
-                            ?: stringResource(R.string.home_last_message_placeholder),
+                        text = previewText,
                         style = MaterialTheme.typography.bodyMedium,
                         color = scheme.onSurfaceVariant,
                         maxLines = 1,

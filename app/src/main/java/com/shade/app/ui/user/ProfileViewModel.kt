@@ -47,9 +47,14 @@ class ProfileViewModel @Inject constructor(
 
     private fun loadAll() {
         viewModelScope.launch {
-            // getOrFetchContact: DB'de varsa profileName'i tazeler, yoksa yeni çeker
-            val contact = contactRepository.getOrFetchContact(shadeId)
-                ?: contactRepository.getContactByShadeId(shadeId)
+            // getOrFetchContact: retry once on failure (context cancellation / network hiccup)
+            var contact = contactRepository.getOrFetchContact(shadeId)
+            if (contact?.profileImagePath == null) {
+                kotlinx.coroutines.delay(800)
+                val retried = contactRepository.getOrFetchContact(shadeId)
+                if (retried != null) contact = retried
+            }
+            if (contact == null) contact = contactRepository.getContactByShadeId(shadeId)
             contactState.value = contact
             _uiState.update { it.copy(contact = contact, isLoading = false) }
         }

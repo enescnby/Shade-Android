@@ -13,9 +13,8 @@ data class ChatWithContact(
     ) val contact: ContactEntity?
 ) {
     /**
-     * What to show in the chat list / chat header.
-     *  - Group chats: backend-provided group name (chat.groupName).
-     *  - 1-to-1:      user-saved name → fallback to shadeId / chatId.
+     * Sohbet listesinde gösterilen isim.
+     * Kaydedilmemişse shadeId gösterilir (profileName atlanır).
      */
     val displayName: String
         get() = if (chat.isGroup) {
@@ -24,8 +23,11 @@ data class ChatWithContact(
             contact?.savedName ?: contact?.shadeId ?: chat.chatId
         }
 
-    /** Profil ekranı için: kayıtlı isim → profil adı → shadeId. Gruplar için groupName. */
-    val fullDisplayName: String
+    /**
+     * Sohbet ekranı header'ında gösterilen isim.
+     * Kaydedilmemişse profileName (Tel3 gibi) gösterilir.
+     */
+    val headerName: String
         get() = if (chat.isGroup) {
             chat.groupName ?: chat.chatId
         } else {

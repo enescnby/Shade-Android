@@ -104,4 +104,34 @@
     <!-- Notification strings (format args) -->
     <string name="notification_more_messages">+%d more messages</string>
     <string name="notification_summary">%1$d chats, %2$d messages</string>
+
+    <!-- Auth screen inline labels -->
+    <string name="end_to_end_encrypted">End-to-End Encrypted</string>
+    <string name="app_tagline">Private. Encrypted. Anonymous.</string>
+    <string name="login_subtitle">Sign in with your Shade ID</string>
+    <string name="mnemonic_hint">Enter your 12-word recovery phrase separated by spaces</string>
+    <string name="recovery_mnemonic_hint">Enter all 12 words in the correct order</string>
+
+    <!-- Security notice (registration) -->
+    <string name="security_notice_title">Security Notice</string>
+    <string name="security_notice_body">When my account is created, unique encryption keys will be generated for me. These keys are stored only on my device; if I lose them, I will no longer be able to access my account. I understand and accept this.</string>
+    <string name="security_notice_hint">Confirm the security notice to continue</string>
+
+    <!-- Security audit screen -->
+    <string name="audit_screen_title">Account Activity</string>
+    <string name="audit_info_text">This screen shows the last 50 security events on your account. If you see an unfamiliar event, review your account.</string>
+    <string name="audit_retry">Retry</string>
+    <string name="audit_empty">No records yet.</string>
+    <string name="audit_registered">Registration completed</string>
+    <string name="audit_login_success">Login verified</string>
+    <string name="audit_login_failed_expired_challenge">Login failed: session missing or expired</string>
+    <string name="audit_login_failed_invalid_challenge">Login failed: verification code mismatch</string>
+    <string name="audit_login_failed_account_missing">Login failed: account not found</string>
+    <string name="audit_login_failed_invalid_signature">Login failed: signature verification failed</string>
+    <string name="audit_login_failed_invalid_device_id">Login failed: device ID invalid</string>
+    <string name="audit_login_failed_unknown_device">Login failed: device not registered to account</string>
+    <string name="audit_login_failed_device_lookup">Login failed: could not retrieve device info</string>
+    <string name="audit_login_failed_device_update">Login failed: device could not be updated</string>
+    <string name="audit_login_failed_device_create">Login failed: device could not be registered</string>
+    <string name="audit_login_failed_token_issue">Login failed: session could not be created</string>
 </resources>
