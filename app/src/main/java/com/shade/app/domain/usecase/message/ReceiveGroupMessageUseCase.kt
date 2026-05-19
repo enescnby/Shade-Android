@@ -200,23 +200,29 @@ class ReceiveGroupMessageUseCase @Inject constructor(
         )
         messageRepository.insertMessage(entity)
 
-        // Son mesaj önizlemesi: medya türlerine göre emoji kullan, metin mesajları ham içeriğidir
-        val preview = when (msgType) {
+        val chatId = payload.groupId
+        val senderLabel = senderContact
+            ?.let { it.savedName ?: it.profileName ?: it.shadeId }
+            ?: senderShadeId
+        val previewBody = when (msgType) {
             com.shade.app.data.local.entities.MessageType.IMAGE -> "📷 Fotoğraf"
             com.shade.app.data.local.entities.MessageType.AUDIO -> "🎤 Ses mesajı"
-            com.shade.app.data.local.entities.MessageType.FILE  -> "퓎 Dosya"
+            com.shade.app.data.local.entities.MessageType.FILE -> "퓎 Dosya"
             else -> plaintext
         }
+        val lastMessagePreview = "$senderLabel: $previewBody"
 
-        val chatId = payload.groupId
+        val groupName = chatRepository.ensureGroupChatRow(chatId) ?: chatId
+
         if (activeChatTracker.activeShadeId == chatId) {
-            chatRepository.updateLastMessage(chatId, preview, payload.timestamp)
+            chatRepository.updateLastMessage(chatId, lastMessagePreview, payload.timestamp)
         } else {
-            chatRepository.updateChatWithNewMessage(chatId, preview, payload.timestamp)
-            val senderLabel = senderContact
-                ?.let { it.savedName ?: it.profileName ?: it.shadeId }
-                ?: senderShadeId
-            notificationHelper.showMessageNotification(senderLabel, preview, chatId)
+            chatRepository.updateChatWithNewMessage(chatId, lastMessagePreview, payload.timestamp)
+            notificationHelper.showMessageNotification(
+                chatId = chatId,
+                chatTitle = groupName,
+                message = lastMessagePreview,
+            )
         }
     }
 

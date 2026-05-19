@@ -56,7 +56,10 @@ class SendGroupMessageUseCase @Inject constructor(
         // 1. Own sender key
         val ownKey = ensureOwnKey(groupId)
 
-        // 2. Ship SKDM to peers that don't have it yet (cheap if already done).
+        // 2a. Linked devices (web): current chain snapshot for multi-device echo.
+        distributeSenderKey.distributeToLinkedDevices(ownKey, force = true)
+
+        // 2b. Other group members (skipped if already dispatched for this key_id).
         distributeSenderKey(ownKey, force = false)
 
         // 3. Derive ratchet keys

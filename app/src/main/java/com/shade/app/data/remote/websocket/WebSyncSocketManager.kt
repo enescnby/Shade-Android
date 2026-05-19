@@ -23,7 +23,8 @@ import javax.inject.Singleton
  *
  * Endpoint: WS `/sync/:session_id?token=<jwt>&role=android`
  *
- * Sync payload’ları **text** JSON olarak gönderilir (batch + sync_complete).
+ * Sync payload’ları **text** JSON olarak gönderilir (`groups_snapshot` isteğe bağlı,
+ * `batch`, `sync_complete`).
  *
  * Singleton; UI life-cycle'ından bağımsız yaşar. Authorize başarılı olduktan
  * sonra connect() çağrılır, kullanıcı manuel disconnect edene kadar veya

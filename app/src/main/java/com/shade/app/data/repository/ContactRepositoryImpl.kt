@@ -275,7 +275,8 @@ class ContactRepositoryImpl @Inject constructor(
                 contactDao.insertContact(contact)
                 contact
             } catch (e: Exception) {
-                null
+                Log.w(TAG, "getOrFetchContactByUserId network error userId=$userId — ${e.message}")
+                existing?.takeIf { it.encryptionPublicKey.isNotBlank() }
             }
         }
     }

@@ -35,6 +35,8 @@ class HandleGroupKeyDistributionUseCase @Inject constructor(
     private val senderKeyRepository: SenderKeyRepository,
     private val pendingPayloads: PendingGroupPayloads,
     private val receiveGroupMessage: ReceiveGroupMessageUseCase,
+    private val ensureOwnKey: EnsureOwnSenderKeyUseCase,
+    private val distributeSenderKey: DistributeSenderKeyUseCase,
     private val keyVaultManager: KeyVaultManager,
 ) {
     suspend operator fun invoke(gkd: GroupKeyDistribution) {
@@ -85,6 +87,19 @@ class HandleGroupKeyDistributionUseCase @Inject constructor(
                 return
             }
 
+            // Detect first-time peer install BEFORE savePeer overwrites it. New
+            // peers (e.g. a freshly-paired web device) require reciprocation:
+            // our dispatch ledger is user-level, so our own SKDM was never
+            // re-sent to that device, and the peer can't decrypt our payloads
+            // without it. See API_CONTRACT.md → "Late Join / SKDM Recovery
+            // (Implicit MVP)".
+            val isNewPeer = senderKeyRepository.getPeer(
+                groupId = skdm.groupId,
+                peerUserId = skdm.senderUserId,
+                peerDeviceId = skdm.senderDeviceId,
+                keyId = skdm.keyId.toLong(),
+            ) == null
+
             val peerKey = PeerSenderKeyEntity(
                 groupId = skdm.groupId,
                 peerUserId = skdm.senderUserId,
@@ -99,7 +114,7 @@ class HandleGroupKeyDistributionUseCase @Inject constructor(
             Log.i(
                 TAG,
                 "Installed peer sender key: group=${skdm.groupId} peer=${skdm.senderUserId} " +
-                        "device=${skdm.senderDeviceId} key=${skdm.keyId}"
+                        "device=${skdm.senderDeviceId} key=${skdm.keyId} new=$isNewPeer"
             )
 
             // Drain any payloads queued for this exact tuple.
@@ -113,6 +128,29 @@ class HandleGroupKeyDistributionUseCase @Inject constructor(
                 Log.i(TAG, "Replaying ${buffered.size} buffered payload(s) for ${skdm.senderUserId}")
                 for (p in buffered.sortedBy { it.chainIndex }) {
                     receiveGroupMessage.replayWithPeerKey(p, peerKey)
+                }
+            }
+
+            // Reciprocate: send our own SKDM back to the sender so *their*
+            // device can decrypt our future payloads. Skip for our own user
+            // (linked-device echoes are handled by distributeToLinkedDevices on
+            // every send). `isNewPeer` guards the loop — once both sides have
+            // each other's key, neither reciprocates again.
+            if (isNewPeer && skdm.senderUserId != myUserId) {
+                runCatching {
+                    val ownKey = ensureOwnKey(skdm.groupId)
+                    val sent = distributeSenderKey(
+                        ownKey,
+                        force = true,
+                        onlyUserId = skdm.senderUserId,
+                    )
+                    Log.i(
+                        TAG,
+                        "Reciprocated SKDM to ${skdm.senderUserId} after new-peer install " +
+                                "(group=${skdm.groupId} sent=$sent)"
+                    )
+                }.onFailure {
+                    Log.w(TAG, "Reciprocate SKDM failed: ${it.message}")
                 }
             }
         } catch (e: Exception) {

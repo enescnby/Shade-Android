@@ -35,11 +35,24 @@ class ChatRepositoryImpl @Inject constructor(
         chatDao.patchGroupHints(chatId, isGroup = true, groupName = grp.name)
     }
 
+    override suspend fun ensureGroupChatRow(groupId: String): String? {
+        var grp = groupRepository.getCachedGroup(groupId)
+        if (grp == null) {
+            groupRepository.getGroup(groupId).getOrNull()
+            grp = groupRepository.getCachedGroup(groupId)
+        }
+        if (grp != null) {
+            chatDao.patchGroupHints(groupId, isGroup = true, groupName = grp.name)
+        }
+        return grp?.name
+    }
+
     override suspend fun updateLastMessage(
         chatId: String,
         lastMessage: String,
         timestamp: Long
     ) {
+        patchGroupHintsIfKnown(chatId)
         val updatedRows = chatDao.updateLastMessage(chatId, lastMessage, timestamp)
         if (updatedRows == 0) {
             chatDao.insertOrUpdateChat(emptyChat(chatId, lastMessage, timestamp, unreadCount = 0))
@@ -52,6 +65,7 @@ class ChatRepositoryImpl @Inject constructor(
         timestamp: Long,
         isFromMe: Boolean,
     ) {
+        patchGroupHintsIfKnown(chatId)
         if (isFromMe) {
             val updatedRows = chatDao.updateLastMessageNoIncrement(chatId, lastMessage, timestamp)
             if (updatedRows == 0) {
@@ -67,6 +81,11 @@ class ChatRepositoryImpl @Inject constructor(
 
     override suspend fun deleteChat(chatId: String) {
         chatDao.deleteChat(chatId)
+    }
+
+    private suspend fun patchGroupHintsIfKnown(chatId: String) {
+        val grp = groupRepository.getCachedGroup(chatId) ?: return
+        chatDao.patchGroupHints(chatId, isGroup = true, groupName = grp.name)
     }
 
     /**

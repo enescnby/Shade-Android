@@ -71,6 +71,7 @@ class SendGroupImageMessageUseCase @Inject constructor(
             ?: error("Missing device_id — re-login required for group messaging")
 
         val ownKey = ensureOwnKey(groupId)
+        distributeSenderKey.distributeToLinkedDevices(ownKey, force = true)
         distributeSenderKey(ownKey, force = false)
 
         val chainKey = Hex.decode(ownKey.chainKeyHex)
