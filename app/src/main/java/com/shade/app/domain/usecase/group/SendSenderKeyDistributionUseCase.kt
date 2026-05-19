@@ -3,8 +3,10 @@ package com.shade.app.domain.usecase.group
 import android.util.Log
 import com.google.protobuf.ByteString
 import com.shade.app.crypto.MessageCryptoManager
+import com.shade.app.data.local.entities.ContactEntity
 import com.shade.app.data.local.entities.OwnSenderKeyEntity
 import com.shade.app.domain.repository.ContactRepository
+import com.shade.app.domain.repository.GroupRepository
 import com.shade.app.domain.repository.MessageRepository
 import com.shade.app.domain.repository.SenderKeyRepository
 import com.shade.app.proto.GroupKeyDistribution
@@ -32,6 +34,7 @@ import javax.inject.Inject
 class SendSenderKeyDistributionUseCase @Inject constructor(
     private val cryptoManager: MessageCryptoManager,
     private val contactRepository: ContactRepository,
+    private val groupRepository: GroupRepository,
     private val messageRepository: MessageRepository,
     private val senderKeyRepository: SenderKeyRepository,
     private val keyVaultManager: KeyVaultManager,
@@ -54,11 +57,7 @@ class SendSenderKeyDistributionUseCase @Inject constructor(
         val myX25519Priv = keyVaultManager.getX25519PrivateKey()
             ?: error("Missing X25519 private key")
 
-        val recipient = contactRepository.getOrFetchContactByUserId(
-            recipientUserId,
-            bypassCache = true,
-        )
-            ?: error("Cannot resolve recipient public key for $recipientUserId")
+        val recipient = resolveRecipientContact(ownKey.groupId, recipientUserId)
 
         val skdm = SenderKeyDistribution.newBuilder()
             .setGroupId(ownKey.groupId)
@@ -106,6 +105,41 @@ class SendSenderKeyDistributionUseCase @Inject constructor(
         Log.d(TAG, "SKDM dispatched: group=${ownKey.groupId} peer=$recipientUserId key=${ownKey.keyId}")
         Unit
     }.onFailure { Log.e(TAG, "SKDM dispatch failed: ${it.message}", it) }
+
+    /**
+     * SKDM için X25519 karşı anahtarı bulur: önce `GET keys/:user_id`, olmazsa
+     * gruptaki `shade_id` ile `GET user/lookup/:shadeId`, en son yerel önbellek.
+     */
+    private suspend fun resolveRecipientContact(groupId: String, recipientUserId: String): ContactEntity {
+        contactRepository.getOrFetchContactByUserId(recipientUserId, bypassCache = true)?.let { return it }
+
+        val shadeId = resolveRecipientShadeId(groupId, recipientUserId)
+        if (!shadeId.isNullOrBlank()) {
+            contactRepository.getOrFetchContact(shadeId)?.takeIf { it.encryptionPublicKey.isNotBlank() }?.let {
+                return it
+            }
+        }
+
+        contactRepository.getContactByUserId(recipientUserId)?.takeIf { it.encryptionPublicKey.isNotBlank() }?.let {
+            return it
+        }
+
+        error("Cannot resolve recipient public key for $recipientUserId")
+    }
+
+    private suspend fun resolveRecipientShadeId(groupId: String, recipientUserId: String): String? {
+        groupRepository.getCachedMembers(groupId)
+            .firstOrNull { it.userId == recipientUserId }
+            ?.shadeId
+            ?.takeIf { it.isNotBlank() }
+            ?.let { return it }
+
+        return groupRepository.getGroup(groupId).getOrNull()
+            ?.members
+            ?.firstOrNull { it.userId == recipientUserId }
+            ?.shadeId
+            ?.takeIf { it.isNotBlank() }
+    }
 
     private companion object {
         private const val TAG = "SendSKDM"

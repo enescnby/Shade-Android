@@ -153,7 +153,6 @@ class ContactRepositoryImpl @Inject constructor(
             val pubkey = body.publicKey.trim()
             val shadeId = existing?.shadeId?.ifBlank { body.coreGuardId } ?: body.coreGuardId
 
-            // Display name ve profil fotoğrafı ID'sini lookup ile çek
             val lookupToken = "Bearer ${keyVaultManager.getAccessToken()}"
             var displayName: String? = null
             var remoteImageId: String? = null
@@ -166,7 +165,6 @@ class ContactRepositoryImpl @Inject constructor(
                 }
             } catch (_: Exception) {}
 
-            // Profil fotoğrafı eksikse indir
             val needsPhoto = existing?.profileImagePath
                 ?.let { File(it).exists() } != true
             val imagePath = if (needsPhoto) {
@@ -197,7 +195,8 @@ class ContactRepositoryImpl @Inject constructor(
             contactDao.insertContact(contact)
             contact
         } catch (e: Exception) {
-            null
+            Log.w(TAG, "getOrFetchContactByUserId network error userId=$userId — ${e.message}")
+            existing?.takeIf { it.encryptionPublicKey.isNotBlank() }
         }
     }
 
@@ -211,5 +210,9 @@ class ContactRepositoryImpl @Inject constructor(
 
     override suspend fun setBlocked(userId: String, isBlocked: Boolean) {
         contactDao.setBlocked(userId, isBlocked)
+    }
+
+    private companion object {
+        private const val TAG = "ContactRepo"
     }
 }

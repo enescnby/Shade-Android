@@ -17,6 +17,12 @@ interface ChatRepository {
      */
     suspend fun alignChatRowFromGroupCache(chatId: String)
 
+    /**
+     * Ensures the group exists in the local cache and the chat row is marked
+     * `isGroup` with [groupName]. Returns the display name, or null if unknown.
+     */
+    suspend fun ensureGroupChatRow(groupId: String): String?
+
     suspend fun updateLastMessage(chatId: String, lastMessage: String, timestamp: Long)
     suspend fun updateChatWithNewMessage(chatId: String, lastMessage: String, timestamp: Long, isFromMe: Boolean = false)
     suspend fun deleteChat(chatId: String)

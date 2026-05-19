@@ -176,7 +176,11 @@ class ReceiveMessageUseCase @Inject constructor(
                 if (activeChatTracker.activeShadeId != chatId) {
                     val displayName = partner.savedName ?: partner.shadeId
                     val notifText = if (payload.type == MessageType.IMAGE) photoLabel else decryptedText
-                    notificationHelper.showMessageNotification(displayName, notifText, chatId)
+                    notificationHelper.showMessageNotification(
+                        chatId = chatId,
+                        chatTitle = displayName,
+                        message = notifText,
+                    )
                 }
             }
         } catch (e: Exception) {

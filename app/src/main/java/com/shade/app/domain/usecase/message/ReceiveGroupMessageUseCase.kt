@@ -199,14 +199,26 @@ class ReceiveGroupMessageUseCase @Inject constructor(
         messageRepository.insertMessage(entity)
 
         val chatId = payload.groupId
+        val senderLabel = senderContact
+            ?.let { it.savedName ?: it.profileName ?: it.shadeId }
+            ?: senderShadeId
+        val previewBody = when (payload.type) {
+            MessageType.IMAGE -> "📷 Fotoğraf"
+            else -> plaintext
+        }
+        val lastMessagePreview = "$senderLabel: $previewBody"
+
+        val groupName = chatRepository.ensureGroupChatRow(chatId) ?: chatId
+
         if (activeChatTracker.activeShadeId == chatId) {
-            chatRepository.updateLastMessage(chatId, plaintext, payload.timestamp)
+            chatRepository.updateLastMessage(chatId, lastMessagePreview, payload.timestamp)
         } else {
-            chatRepository.updateChatWithNewMessage(chatId, plaintext, payload.timestamp)
-            val senderLabel = senderContact
-                ?.let { it.savedName ?: it.profileName ?: it.shadeId }
-                ?: senderShadeId
-            notificationHelper.showMessageNotification(senderLabel, plaintext, chatId)
+            chatRepository.updateChatWithNewMessage(chatId, lastMessagePreview, payload.timestamp)
+            notificationHelper.showMessageNotification(
+                chatId = chatId,
+                chatTitle = groupName,
+                message = lastMessagePreview,
+            )
         }
     }
 
