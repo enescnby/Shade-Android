@@ -17,4 +17,7 @@ sealed class Screen(val route: String) {
     object QrScanner : Screen("qr_scanner")
     object MyProfile : Screen("my_profile")
     object CreateGroup : Screen("create_group")
+    object GroupDetail : Screen("group_detail/{groupId}") {
+        fun createRoute(groupId: String) = "group_detail/$groupId"
+    }
 }

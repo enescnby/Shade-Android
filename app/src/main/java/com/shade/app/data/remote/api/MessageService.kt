@@ -11,7 +11,7 @@ import retrofit2.http.Query
 
 interface MessageService {
     /**
-     * Pulls all queued messages and receipts for the current user and clears the queue server-side.
+     * Pulls queued [WebSocketMessage] frames (Base64 in each item). Call again while `has_more` is true.
      * @param limit 1-500, default 100.
      */
     @GET("messages/inbox")

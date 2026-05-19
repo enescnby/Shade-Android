@@ -21,6 +21,13 @@ import com.shade.app.util.NotificationHelper
 import org.bouncycastle.util.encoders.Hex
 import javax.inject.Inject
 
+/**
+ * Decrypts and persists an incoming **1-to-1** [EncryptedPayload].
+ *
+ * Group payloads (where `group_id` is set) are routed through
+ * [ReceiveGroupMessageUseCase] instead — this use case is strictly for the
+ * pairwise X25519+AEAD path.
+ */
 class ReceiveMessageUseCase @Inject constructor(
     private val messageRepository: MessageRepository,
     private val chatRepository: ChatRepository,
@@ -35,6 +42,10 @@ class ReceiveMessageUseCase @Inject constructor(
     private val gson = Gson()
 
     suspend operator fun invoke(payload: EncryptedPayload, sendReceipt: Boolean = true) {
+        if (payload.groupId.isNotEmpty()) {
+            Log.w(TAG, "Group payload routed to 1-to-1 use case — ignoring ${payload.messageId}")
+            return
+        }
         try {
             val myPrivateKeyHex = keyVaultManager.getX25519PrivateKey() ?: return
             val myShadeId = keyVaultManager.getShadeId() ?: return
@@ -51,7 +62,7 @@ class ReceiveMessageUseCase @Inject constructor(
             if (isOutgoingEcho) {
                 when (messageRepository.getMessageStatus(payload.messageId)) {
                     MessageStatus.SENT, MessageStatus.DELIVERED, MessageStatus.READ -> {
-                        Log.d("ReceiveMessage", "Ignoring duplicate self-echo for ${payload.messageId}")
+                        Log.d(TAG, "Ignoring duplicate self-echo for ${payload.messageId}")
                         return
                     }
                     else -> Unit
@@ -61,7 +72,7 @@ class ReceiveMessageUseCase @Inject constructor(
             val partner: ContactEntity = if (isOutgoingEcho) {
                 contactRepository.getContactByUserId(payload.receiverId) ?: run {
                     Log.w(
-                        "ReceiveMessage",
+                        TAG,
                         "Self-echo received but receiver_id=${payload.receiverId} is not in local contacts; skipping ${payload.messageId}"
                     )
                     return
@@ -80,20 +91,13 @@ class ReceiveMessageUseCase @Inject constructor(
                     derivedKey
                 )
             } catch (e: Exception) {
-                Log.e("ReceiveMessage", "Decryption failed: ${e.message}")
+                Log.e(TAG, "Decryption failed: ${e.message}")
                 "Decryption Error"
             }
 
-            // Group messages use groupId as the chat identifier
-            val isGroupMessage = payload.groupId.isNotEmpty()
-            val chatId = if (isGroupMessage) payload.groupId else partner.shadeId
-
+            val chatId = partner.shadeId
             val entitySenderId = if (isOutgoingEcho) myShadeId else partner.shadeId
-            val entityReceiverId = when {
-                isGroupMessage   -> payload.groupId
-                isOutgoingEcho   -> partner.shadeId
-                else             -> myShadeId
-            }
+            val entityReceiverId = if (isOutgoingEcho) partner.shadeId else myShadeId
             val entityStatus = if (isOutgoingEcho) MessageStatus.SENT else MessageStatus.DELIVERED
 
             val entity = when (payload.type) {
@@ -104,7 +108,7 @@ class ReceiveMessageUseCase @Inject constructor(
                         val thumbnailBytes = Base64.decode(imageContent.thumbnailBase64, Base64.NO_WRAP)
                         thumbnailPath = imageFileManager.saveThumbnail(payload.messageId, thumbnailBytes)
                     } catch (e: Exception) {
-                        Log.e("ReceiveMessage", "Thumbnail save failed: ${e.message}")
+                        Log.e(TAG, "Thumbnail save failed: ${e.message}")
                     }
 
                     MessageEntity(
@@ -132,7 +136,7 @@ class ReceiveMessageUseCase @Inject constructor(
                         status = entityStatus,
                         messageType = com.shade.app.data.local.entities.MessageType.AUDIO,
                         audioDurationMs = durationMs,
-                        audioPath = null  // indirilmedi henüz
+                        audioPath = null
                     )
                 }
                 else -> {
@@ -157,8 +161,6 @@ class ReceiveMessageUseCase @Inject constructor(
                 else -> decryptedText
             }
             if (isOutgoingEcho) {
-                // Kendi gönderdiğimiz mesaj; unread count'u kabartmıyoruz, bildirim atmıyoruz,
-                // delivery receipt göndermiyoruz.
                 chatRepository.updateLastMessage(chatId, lastMessageText, payload.timestamp)
             } else {
                 if (activeChatTracker.activeShadeId == chatId) {
@@ -167,20 +169,26 @@ class ReceiveMessageUseCase @Inject constructor(
                     chatRepository.updateChatWithNewMessage(chatId, lastMessageText, payload.timestamp)
                 }
 
-                // Group messages don't need per-message delivery receipts
-                if (sendReceipt && !isGroupMessage) {
+                if (sendReceipt) {
                     sendReceiptUseCase(payload.messageId, partner.shadeId, MessageStatus.DELIVERED)
                 }
 
                 if (activeChatTracker.activeShadeId != chatId) {
-                    val displayName = if (isGroupMessage) payload.groupId
-                                      else (partner.savedName ?: partner.shadeId)
+                    val displayName = partner.savedName ?: partner.shadeId
                     val notifText = if (payload.type == MessageType.IMAGE) photoLabel else decryptedText
-                    notificationHelper.showMessageNotification(displayName, notifText, chatId)
+                    notificationHelper.showMessageNotification(
+                        chatId = chatId,
+                        chatTitle = displayName,
+                        message = notifText,
+                    )
                 }
             }
         } catch (e: Exception) {
-            Log.e("ReceiveMessage", "Exception in ReceiveMessageUseCase: ${e.message}")
+            Log.e(TAG, "Exception in ReceiveMessageUseCase: ${e.message}")
         }
+    }
+
+    private companion object {
+        private const val TAG = "ReceiveMessage"
     }
 }

@@ -47,17 +47,22 @@ class NotificationHelper @Inject constructor(
         }
     }
 
-    fun showMessageNotification(senderName: String, message: String, senderShadeId: String) {
+    /**
+     * @param chatId thread id (contact shade_id for DM, group UUID for groups)
+     * @param chatTitle row title — contact name or group name
+     * @param message notification body (include sender prefix for groups)
+     */
+    fun showMessageNotification(chatId: String, chatTitle: String, message: String) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        val messages = messageByUser.getOrPut(senderShadeId) { mutableListOf() }
+        val messages = messageByUser.getOrPut(chatId) { mutableListOf() }
         messages.add(message)
 
-        val notificationId = senderShadeId.hashCode()
+        val notificationId = chatId.hashCode()
 
         val intent = Intent(context, MainActivity::class.java).apply {
-            putExtra("chatId", senderShadeId)
-            putExtra("chatName", senderName)
+            putExtra("chatId", chatId)
+            putExtra("chatName", chatTitle)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
 
@@ -69,7 +74,7 @@ class NotificationHelper @Inject constructor(
         )
 
         val inboxStyle = NotificationCompat.InboxStyle()
-            .setBigContentTitle(senderName)
+            .setBigContentTitle(chatTitle)
 
         messages.takeLast(7).forEach { msg ->
             inboxStyle.addLine(msg)
@@ -82,7 +87,7 @@ class NotificationHelper @Inject constructor(
         }
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setContentTitle(senderName)
+            .setContentTitle(chatTitle)
             .setContentText(message)
             .setSmallIcon(R.drawable.ic_stat_shade)
             .setAutoCancel(true)
@@ -114,10 +119,10 @@ class NotificationHelper @Inject constructor(
         }
     }
 
-    fun clearNotifications(senderShadeId: String) {
-        messageByUser.remove(senderShadeId)
+    fun clearNotifications(chatId: String) {
+        messageByUser.remove(chatId)
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.cancel(senderShadeId.hashCode())
+        manager.cancel(chatId.hashCode())
 
         if (messageByUser.size <= 1) {
             manager.cancel(SUMMARY_ID)

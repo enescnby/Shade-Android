@@ -43,6 +43,9 @@ import kotlinx.coroutines.delay
 fun MessageBubble(
     message: MessageEntity,
     isMe: Boolean,
+    isGroupChat: Boolean = false,
+    senderName: String? = null,
+    senderShadeId: String? = null,
     isDownloading: Boolean = false,
     downloadProgress: Float = 0f,
     isDownloadingFile: Boolean = false,
@@ -58,6 +61,27 @@ fun MessageBubble(
     onEdit: (() -> Unit)? = null,
     onReply: (() -> Unit)? = null,
 ) {
+    // Sistem mesajları (grup üye ayrıldı/çıkarıldı) — balon gösterme
+    if (message.messageType == MessageType.SYSTEM) {
+        Box(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(
+                color = Color.Gray.copy(alpha = 0.15f),
+                shape = RoundedCornerShape(12.dp),
+            ) {
+                Text(
+                    text = message.content,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextMuted,
+                )
+            }
+        }
+        return
+    }
+
     val dateFormatter = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     val timeString = remember(message.timestamp) { dateFormatter.format(Date(message.timestamp)) }
 
@@ -115,6 +139,26 @@ fun MessageBubble(
         contentAlignment = if (isMe) Alignment.CenterEnd else Alignment.CenterStart
     ) {
         Column(horizontalAlignment = if (isMe) Alignment.End else Alignment.Start) {
+            // Grup sohbetinde karşı tarafın adını göster
+            if (isGroupChat && !isMe && (senderShadeId != null || senderName != null)) {
+                Column(modifier = Modifier.padding(start = 6.dp, bottom = 2.dp)) {
+                    // Birinci satır: shadeId (her zaman)
+                    Text(
+                        text = senderShadeId ?: senderName ?: "",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AccentPurple,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    // İkinci satır: profileName/savedName (shadeId'den farklıysa)
+                    if (senderName != null && senderName != senderShadeId) {
+                        Text(
+                            text = senderName,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = AccentPurple.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            }
             Box {
                 DropdownMenu(
                     expanded = showMenu,
@@ -174,10 +218,11 @@ fun MessageBubble(
                     } else {
                         Column(modifier = bgModifier) {
                             when (message.messageType) {
-                                MessageType.IMAGE -> ImageContent(message, isMe, isDownloading, downloadProgress, bubbleShape, timeString, onImageClick, onDownloadClick)
-                                MessageType.TEXT  -> TextContent(message, isMe, translatedText, isTranslating, timeString)
-                                MessageType.AUDIO -> AudioMessageBubble(message, isMe, isDownloadingFile, onDownloadAudioClick, timeString)
-                                MessageType.FILE  -> FileMessageBubble(message, isMe, isDownloadingFile, onDownloadFileClick, timeString)
+                                MessageType.IMAGE  -> ImageContent(message, isMe, isDownloading, downloadProgress, bubbleShape, timeString, onImageClick, onDownloadClick)
+                                MessageType.TEXT   -> TextContent(message, isMe, translatedText, isTranslating, timeString)
+                                MessageType.AUDIO  -> AudioMessageBubble(message, isMe, isDownloadingFile, onDownloadAudioClick, timeString)
+                                MessageType.FILE   -> FileMessageBubble(message, isMe, isDownloadingFile, onDownloadFileClick, timeString)
+                                MessageType.SYSTEM -> {} // handled above via early return
                             }
                         }
                     }

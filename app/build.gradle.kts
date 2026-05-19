@@ -1,8 +1,6 @@
 import java.util.Properties
 import com.google.protobuf.gradle.*
 
-// Build çıktısını OneDrive dışına yönlendir → R.jar kilit sorunu çözülür
-layout.buildDirectory.set(file("C:/Dev/shade-build/app"))
 
 plugins {
     alias(libs.plugins.android.application)

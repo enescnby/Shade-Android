@@ -1,5 +1,6 @@
 package com.shade.app.data.local.entities
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -10,6 +11,14 @@ data class MessageEntity(
 
     val senderId: String,
     val receiverId: String,
+
+    /**
+     * Grup iletilerinde `senderId` yine gönderenin shade_id'sidir; DM listesi
+     * sorgusu `(senderId = X OR receiverId = X)` olduğundan grup mesajları DM'de
+     * yanlışlıkla görünmesin diye ayrı filtre kullanılır.
+     */
+    @ColumnInfo(name = "isGroupThread", defaultValue = "0")
+    val isGroupThread: Boolean = false,
 
     val messageType: MessageType,
     val content: String,

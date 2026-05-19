@@ -7,11 +7,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shade.app.data.local.entities.MessageEntity
 import com.shade.app.data.local.entities.MessageStatus
-import com.shade.app.data.remote.api.UserService
 import com.shade.app.data.preferences.TranslationConsentRepository
 import com.shade.app.data.repository.TranslationRepository
 import com.shade.app.domain.repository.ChatRepository
 import com.shade.app.domain.repository.ContactRepository
+import com.shade.app.domain.repository.GroupRepository
 import com.shade.app.domain.repository.MessageRepository
 import com.shade.app.data.repository.ChatPrefsRepository
 import com.shade.app.domain.usecase.message.DeleteMessageForEveryoneUseCase
@@ -21,6 +21,9 @@ import com.shade.app.domain.usecase.message.EditMessageUseCase
 import com.shade.app.domain.usecase.message.MarkChatAsReadUseCase
 import com.shade.app.domain.usecase.message.SendAudioMessageUseCase
 import com.shade.app.domain.usecase.message.SendFileMessageUseCase
+import com.shade.app.domain.usecase.message.SendGroupAudioMessageUseCase
+import com.shade.app.domain.usecase.message.SendGroupImageMessageUseCase
+import com.shade.app.domain.usecase.message.SendGroupMessageUseCase
 import com.shade.app.domain.usecase.message.SendImageMessageUseCase
 import com.shade.app.domain.usecase.message.SendMessageUseCase
 import java.io.File
@@ -39,10 +42,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import javax.inject.Inject
 
 data class ChatUiState(
@@ -50,6 +50,8 @@ data class ChatUiState(
     val chatName: String = "",
     val chatId: String = "",
     val contactShadeId: String? = null,
+    val contactImagePath: String? = null,
+    val isGroupChat: Boolean = false,
     val myShadeId: String = "",
     val initialScrollIndex: Int? = null,
     val firstUnreadMessageId: String? = null,
@@ -74,13 +76,23 @@ data class ChatUiState(
     val replyingToMessage: MessageEntity? = null,
     // Chat customisation
     val chatBackgroundColor: Int? = null,   // ARGB int, null = default
-    val errorMessage: String? = null        // Snackbar mesajı — null = gösterme
+    val errorMessage: String? = null,       // Snackbar mesajı — null = gösterme
+    /** Grup sohbetinde senderId → görünen ad haritası */
+    val groupSenderNames: Map<String, String> = emptyMap(),
+    /** Grup sohbetinde senderId → shadeId haritası (ikinci satır için) */
+    val groupSenderShadeIds: Map<String, String> = emptyMap(),
+    /** Kullanıcının bu grupta hâlâ üye olup olmadığı; 1:1 sohbetlerde her zaman true */
+    val isGroupMember: Boolean = true,
 )
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val messageRepository: MessageRepository,
     private val sendMessageUseCase: SendMessageUseCase,
+    private val sendGroupMessageUseCase: SendGroupMessageUseCase,
+    private val sendGroupImageMessageUseCase: SendGroupImageMessageUseCase,
+    private val sendGroupAudioMessageUseCase: SendGroupAudioMessageUseCase,
     private val sendImageMessageUseCase: SendImageMessageUseCase,
     private val downloadImageUseCase: DownloadImageUseCase,
     private val markChatAsReadUseCase: MarkChatAsReadUseCase,
@@ -90,9 +102,9 @@ class ChatViewModel @Inject constructor(
     private val sendFileMessageUseCase: SendFileMessageUseCase,
     private val downloadFileUseCase: DownloadFileUseCase,
     private val chatRepository: ChatRepository,
+    private val groupRepository: GroupRepository,
     private val contactRepository: ContactRepository,
     private val keyVaultManager: KeyVaultManager,
-    private val userService: UserService,
     private val translationRepository: TranslationRepository,
     private val translationConsentRepository: TranslationConsentRepository,
     private val activeChatTracker: ActiveChatTracker,
@@ -117,6 +129,14 @@ class ChatViewModel @Inject constructor(
     )
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
+    private fun threadIsGroupFlow(): Flow<Boolean> =
+        combine(
+            chatRepository.observeChatWithContact(chatId),
+            groupRepository.observeCachedGroup(chatId),
+        ) { cw, grp ->
+            cw?.chat?.isGroup == true || grp != null
+        }.distinctUntilChanged()
+
     /**
      * Sayfalı mesaj akışı — büyük sohbetlerde RAM kullanımını sınırlar.
      * [cachedIn] ile ViewModel yeniden başlatılsa da cache'den beslenir.
@@ -126,7 +146,10 @@ class ChatViewModel @Inject constructor(
      * İleride [messages] tamamen kaldırılıp yalnızca sayfalı veri kullanılabilir.
      */
     val pagedMessages: Flow<PagingData<MessageEntity>> =
-        messageRepository.getMessagesForChatPaged(chatId)
+        threadIsGroupFlow()
+            .flatMapLatest { isGroup ->
+                messageRepository.getMessagesForChatPaged(chatId, isGroup)
+            }
             .cachedIn(viewModelScope)
 
     val translationDisclaimerAccepted: StateFlow<Boolean> =
@@ -138,6 +161,9 @@ class ChatViewModel @Inject constructor(
 
     private var hasCalculatedInitialScroll = false
 
+    /** 1-to-1 sohbeti için tek sefer `/user/lookup` — grubu yanlışlıkla tetiklememek için chat satırı yoksa bekleme. */
+    private var prefetchedDmPeerProfile = false
+
     init {
         Log.d(TAG, "ChatViewModel başlatıldı: chatId=$chatId")
         activeChatTracker.setActive(chatId)
@@ -148,11 +174,8 @@ class ChatViewModel @Inject constructor(
         }
         observeMessages()
         observeChatDetails()
-        fetchUserStatus()
         observeChatPrefs()
         viewModelScope.launch { markChatAsReadUseCase(chatId) }
-        // Arka planda profil adını tazele: Tel1 adını değiştirdiyse Tel2 anında görsün
-        viewModelScope.launch { contactRepository.getOrFetchContact(chatId) }
     }
 
     override fun onCleared() {
@@ -162,7 +185,10 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun observeMessages() {
-        messageRepository.getMessagesForChat(chatId)
+        threadIsGroupFlow()
+            .flatMapLatest { isGroup ->
+                messageRepository.getMessagesForChat(chatId, isGroup)
+            }
             .onEach { messages ->
                 Log.d(TAG, "Mesaj listesi güncellendi: ${messages.size} mesaj")
                 val myId = _uiState.value.myShadeId
@@ -184,7 +210,22 @@ class ChatViewModel @Inject constructor(
                     hasCalculatedInitialScroll = true
                 }
 
-                _uiState.update { it.copy(messages = messages) }
+                // Gönderen adlarını çek (grup ve 1:1 — isGroupChat state'i henüz gelmemiş olabilir)
+                val uniqueSenders = messages
+                    .filter { it.senderId != myId }
+                    .map { it.senderId }
+                    .distinct()
+                data class SenderInfo(val displayName: String, val shadeId: String)
+                val senderInfos: Map<String, SenderInfo> = uniqueSenders.associateWith { senderId ->
+                    val contact = contactRepository.getOrFetchContact(senderId)
+                    val shadeId = contact?.shadeId ?: senderId
+                    val displayName = contact?.let { c -> c.savedName ?: c.profileName ?: c.shadeId } ?: senderId
+                    SenderInfo(displayName, shadeId)
+                }
+                val senderNames = senderInfos.mapValues { it.value.displayName }
+                val senderShadeIds = senderInfos.mapValues { it.value.shadeId }
+
+                _uiState.update { it.copy(messages = messages, groupSenderNames = senderNames, groupSenderShadeIds = senderShadeIds) }
 
                 val hasUnread = messages.any {
                     it.senderId != myId && it.status != MessageStatus.READ
@@ -197,53 +238,105 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun observeChatDetails() {
-        chatRepository.observeChatWithContact(chatId)
-            .onEach { chatWithContact ->
-                chatWithContact?.let { details ->
-                    _uiState.update {
-                        it.copy(
-                            chatName = details.displayName,
-                            contactShadeId = details.contact?.shadeId
-                        )
+        combine(
+            chatRepository.observeChatWithContact(chatId),
+            groupRepository.observeCachedGroup(chatId),
+            groupRepository.observeCachedMembers(chatId),
+        ) { cw, grp, members -> Triple(cw, grp, members) }
+            .onEach { (chatWithContact, cachedGroup, members) ->
+                // `chats.isGroup` is wrong if the chat row was first created via
+                // inbound message helpers that forgot the flag — also trust the
+                // groups table backing `observeCachedGroup`.
+                val isGroupChat =
+                    chatWithContact?.chat?.isGroup == true || cachedGroup != null
+
+                if (cachedGroup != null &&
+                    chatWithContact != null &&
+                    !chatWithContact.chat.isGroup
+                ) {
+                    viewModelScope.launch {
+                        chatRepository.alignChatRowFromGroupCache(chatId)
                     }
+                }
+
+                val photoMissing = chatWithContact?.contact?.profileImagePath
+                    ?.let { java.io.File(it).exists() } != true
+                if (!isGroupChat && chatWithContact != null && (!prefetchedDmPeerProfile || photoMissing)) {
+                    prefetchedDmPeerProfile = true
+                    viewModelScope.launch {
+                        contactRepository.getOrFetchContact(chatId)
+                    }
+                }
+
+                val headerTitle = when {
+                    isGroupChat ->
+                        cachedGroup?.name?.takeIf { it.isNotBlank() }
+                            ?: chatWithContact?.chat?.groupName?.takeIf { it.isNotBlank() }
+                            ?: initialChatName.takeIf { it.isNotBlank() }
+                            ?: chatId
+                    else ->
+                        chatWithContact?.headerName?.takeIf { it.isNotBlank() }
+                            ?: initialChatName.takeIf { it.isNotBlank() }
+                            ?: chatId
+                }
+
+                // Kullanıcının grupta üye olup olmadığını kontrol et
+                val isGroupMember = if (isGroupChat) {
+                    val myId = _uiState.value.myShadeId
+                    members.any { it.shadeId == myId || it.userId == myId }
+                } else {
+                    true
+                }
+
+                _uiState.update {
+                    it.copy(
+                        chatName = headerTitle,
+                        contactShadeId =
+                            if (!isGroupChat) chatWithContact?.contact?.shadeId else null,
+                        contactImagePath =
+                            if (!isGroupChat) chatWithContact?.contact?.profileImagePath else null,
+                        isGroupChat = isGroupChat,
+                        isGroupMember = isGroupMember,
+                    )
                 }
             }
             .launchIn(viewModelScope)
     }
 
-    private fun fetchUserStatus() {
-        viewModelScope.launch {
-            try {
-                val token = "Bearer ${keyVaultManager.getAccessToken()}"
-                val response = userService.getUserStatus(token, chatId)
-                if (response.isSuccessful) {
-                    val status = response.body() ?: return@launch
-                    val text = when {
-                        status.isOnline -> "Çevrimiçi"
-                        status.lastActive.isNullOrBlank() -> ""
-                        else -> {
-                            val instant = Instant.parse(status.lastActive)
-                            val minutesAgo = ChronoUnit.MINUTES.between(instant, Instant.now())
-                            when {
-                                minutesAgo < 60 -> "Son görülme: $minutesAgo dakika önce"
-                                minutesAgo < 1440 -> "Son görülme: ${minutesAgo / 60} saat önce"
-                                else -> {
-                                    val formatter = DateTimeFormatter.ofPattern("d MMM")
-                                        .withZone(ZoneId.systemDefault())
-                                    "Son görülme: ${formatter.format(instant)}"
-                                }
-                            }
-                        }
-                    }
-                    _uiState.update { it.copy(lastSeenText = text) }
-                    Log.d(TAG, "Son görülme: $text")
-                }
-            } catch (e: Exception) {
-                errorReporter.report(TAG, "Son görülme alınamadı", e)
-                // Non-fatal: kullanıcıya gösterme, sadece raporla
-            }
-        }
-    }
+    // Geçici: user/status API devre dışı — aşağıdaki gövdeyi geri alıp init'te fetchUserStatus() çağır.
+//    private fun fetchUserStatus() {
+//        viewModelScope.launch {
+//            try {
+//                val token = "Bearer ${keyVaultManager.getAccessToken()}"
+//                val response = userService.getUserStatus(token, chatId)
+//                if (response.isSuccessful) {
+//                    val status = response.body() ?: return@launch
+//                    val text = when {
+//                        status.isOnline -> "Çevrimiçi"
+//                        status.lastActive.isNullOrBlank() -> ""
+//                        else -> {
+//                            val instant = Instant.parse(status.lastActive)
+//                            val minutesAgo = ChronoUnit.MINUTES.between(instant, Instant.now())
+//                            when {
+//                                minutesAgo < 60 -> "Son görülme: $minutesAgo dakika önce"
+//                                minutesAgo < 1440 -> "Son görülme: ${minutesAgo / 60} saat önce"
+//                                else -> {
+//                                    val formatter = DateTimeFormatter.ofPattern("d MMM")
+//                                        .withZone(ZoneId.systemDefault())
+//                                    "Son görülme: ${formatter.format(instant)}"
+//                                }
+//                            }
+//                        }
+//                    }
+//                    _uiState.update { it.copy(lastSeenText = text) }
+//                    Log.d(TAG, "Son görülme: $text")
+//                }
+//            } catch (e: Exception) {
+//                errorReporter.report(TAG, "Son görülme alınamadı", e)
+//                // Non-fatal: kullanıcıya gösterme, sadece raporla
+//            }
+//        }
+//    }
 
     private fun observeChatPrefs() {
         chatPrefsRepository.getChatBackground(chatId)
@@ -254,14 +347,27 @@ class ChatViewModel @Inject constructor(
     fun sendMessage(content: String) {
         if (content.isBlank()) return
         val replyTo = _uiState.value.replyingToMessage
-        Log.d(TAG, "Metin mesajı gönderiliyor → chatId=$chatId, reply=${replyTo?.messageId}")
+        val isGroup = _uiState.value.isGroupChat
+        Log.d(TAG, "Metin mesajı gönderiliyor → chatId=$chatId, group=$isGroup, reply=${replyTo?.messageId}")
         viewModelScope.launch {
-            sendMessageUseCase(
-                receiverShadeId = chatId,
-                content = content,
-                replyToId = replyTo?.messageId,
-                replyToContent = replyTo?.content?.take(80)
-            )
+            if (isGroup) {
+                // Group messaging uses the Sender Keys ratchet — replies are
+                // not supported on the group wire today (the metadata for
+                // reply-to lives inside the encrypted plaintext for 1-to-1
+                // chats; we'd need to wrap the JSON the same way here).
+                sendGroupMessageUseCase(
+                    groupId = chatId,
+                    groupName = _uiState.value.chatName,
+                    text = content,
+                )
+            } else {
+                sendMessageUseCase(
+                    receiverShadeId = chatId,
+                    content = content,
+                    replyToId = replyTo?.messageId,
+                    replyToContent = replyTo?.content?.take(80)
+                )
+            }
             _uiState.update { it.copy(replyingToMessage = null) }
             Log.d(TAG, "Metin mesajı gönderildi")
         }
@@ -269,8 +375,23 @@ class ChatViewModel @Inject constructor(
 
     fun sendImage(uri: Uri) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isSendingImage = true) }
-            sendImageMessageUseCase(receiverShadeId = chatId, imageUri = uri)
+            _uiState.update { it.copy(isSendingImage = true, errorMessage = null) }
+            try {
+                if (_uiState.value.isGroupChat) {
+                    sendGroupImageMessageUseCase(
+                        groupId = chatId,
+                        groupName = _uiState.value.chatName,
+                        imageUri = uri,
+                    )
+                } else {
+                    sendImageMessageUseCase(receiverShadeId = chatId, imageUri = uri)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Görsel gönderilemedi: ${e.message}", e)
+                _uiState.update {
+                    it.copy(errorMessage = "Görsel gönderilemedi: ${e.message ?: "Bilinmeyen hata"}")
+                }
+            }
             _uiState.update { it.copy(isSendingImage = false) }
         }
     }
@@ -278,11 +399,19 @@ class ChatViewModel @Inject constructor(
     fun sendAudio(audioFile: File, durationMs: Long) {
         viewModelScope.launch {
             _uiState.update { it.copy(isSendingAudio = true, errorMessage = null) }
-            val result = sendAudioMessageUseCase(
-                receiverShadeId = chatId,
-                audioFile = audioFile,
-                durationMs = durationMs
-            )
+            val result = if (_uiState.value.isGroupChat) {
+                sendGroupAudioMessageUseCase(
+                    groupId = chatId,
+                    audioFile = audioFile,
+                    durationMs = durationMs,
+                )
+            } else {
+                sendAudioMessageUseCase(
+                    receiverShadeId = chatId,
+                    audioFile = audioFile,
+                    durationMs = durationMs,
+                )
+            }
             _uiState.update { it.copy(isSendingAudio = false) }
             result.onFailure { e ->
                 Log.e(TAG, "Ses mesajı gönderilemedi: ${e.message}", e)
@@ -347,7 +476,7 @@ class ChatViewModel @Inject constructor(
             _uiState.update { it.copy(searchResults = emptyList()) }
             return
         }
-        messageRepository.searchMessages(chatId, query)
+        messageRepository.searchMessages(chatId, query, _uiState.value.isGroupChat)
             .onEach { results ->
                 Log.d(TAG, "Arama sonucu: ${results.size} mesaj ('$query')")
                 _uiState.update { it.copy(searchResults = results) }

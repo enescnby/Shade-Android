@@ -270,12 +270,21 @@ fun ChatItem(
                 color = BubbleMine
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = chat.displayName.take(1).uppercase(Locale.getDefault()),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                    if (chat.chat.isGroup) {
+                        Icon(
+                            Icons.Default.Group,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    } else {
+                        Text(
+                            text = chat.displayName.take(1).uppercase(Locale.getDefault()),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
                 }
             }
 

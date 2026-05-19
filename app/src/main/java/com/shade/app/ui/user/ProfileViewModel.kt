@@ -4,10 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shade.app.data.local.entities.ContactEntity
-import com.shade.app.data.remote.api.UserService
 import com.shade.app.domain.repository.ContactRepository
 import com.shade.app.domain.repository.MessageRepository
-import com.shade.app.security.KeyVaultManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,10 +13,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
 import javax.inject.Inject
 
 data class ProfileUiState(
@@ -33,8 +27,6 @@ data class ProfileUiState(
 class ProfileViewModel @Inject constructor(
     private val contactRepository: ContactRepository,
     private val messageRepository: MessageRepository,
-    private val userService: UserService,
-    private val keyVaultManager: KeyVaultManager,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -62,40 +54,41 @@ class ProfileViewModel @Inject constructor(
             _uiState.update { it.copy(contact = contact, isLoading = false) }
         }
 
-        viewModelScope.launch {
-            try {
-                val token = "Bearer ${keyVaultManager.getAccessToken()}"
-                val response = userService.getUserStatus(token, shadeId)
-                if (response.isSuccessful) {
-                    val status = response.body() ?: return@launch
-                    val lastSeenText = when {
-                        status.isOnline -> "Çevrimiçi"
-                        status.lastActive.isNullOrBlank() -> "Son görülme bilinmiyor"
-                        else -> {
-                            val instant = Instant.parse(status.lastActive)
-                            val minutesAgo = ChronoUnit.MINUTES.between(instant, Instant.now())
-                            when {
-                                minutesAgo < 1 -> "Az önce görüldü"
-                                minutesAgo < 60 -> "Son görülme: $minutesAgo dakika önce"
-                                minutesAgo < 1440 -> "Son görülme: ${minutesAgo / 60} saat önce"
-                                else -> {
-                                    val formatter = DateTimeFormatter.ofPattern("d MMM HH:mm")
-                                        .withZone(ZoneId.systemDefault())
-                                    "Son görülme: ${formatter.format(instant)}"
-                                }
-                            }
-                        }
-                    }
-                    _uiState.update {
-                        it.copy(isOnline = status.isOnline, lastSeenText = lastSeenText)
-                    }
-                }
-            } catch (_: Exception) {}
-        }
+        // Geçici: GET user/status/{shadeId} — backend hazır olunca açılabilir.
+//        viewModelScope.launch {
+//            try {
+//                val token = "Bearer ${keyVaultManager.getAccessToken()}"
+//                val response = userService.getUserStatus(token, shadeId)
+//                if (response.isSuccessful) {
+//                    val status = response.body() ?: return@launch
+//                    val lastSeenText = when {
+//                        status.isOnline -> "Çevrimiçi"
+//                        status.lastActive.isNullOrBlank() -> "Son görülme bilinmiyor"
+//                        else -> {
+//                            val instant = Instant.parse(status.lastActive)
+//                            val minutesAgo = ChronoUnit.MINUTES.between(instant, Instant.now())
+//                            when {
+//                                minutesAgo < 1 -> "Az önce görüldü"
+//                                minutesAgo < 60 -> "Son görülme: $minutesAgo dakika önce"
+//                                minutesAgo < 1440 -> "Son görülme: ${minutesAgo / 60} saat önce"
+//                                else -> {
+//                                    val formatter = DateTimeFormatter.ofPattern("d MMM HH:mm")
+//                                        .withZone(ZoneId.systemDefault())
+//                                    "Son görülme: ${formatter.format(instant)}"
+//                                }
+//                            }
+//                        }
+//                    }
+//                    _uiState.update {
+//                        it.copy(isOnline = status.isOnline, lastSeenText = lastSeenText)
+//                    }
+//                }
+//            } catch (_: Exception) {}
+//        }
 
         viewModelScope.launch {
             try {
-                val count = messageRepository.countMediaMessages(shadeId)
+                val count = messageRepository.countMediaMessages(shadeId, isGroupThread = false)
                 _uiState.update { it.copy(mediaCount = count) }
             } catch (_: Exception) {}
         }

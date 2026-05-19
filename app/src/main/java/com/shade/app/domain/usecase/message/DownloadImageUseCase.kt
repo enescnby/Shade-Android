@@ -36,20 +36,25 @@ class DownloadImageUseCase @Inject constructor(
                 onProgress = onProgress
             ).getOrElse { return Result.failure(it) }
 
-            val myPrivateKeyHex = keyVaultManager.getX25519PrivateKey()
-                ?: return Result.failure(Exception("Private key not found"))
-            val myShadeId = keyVaultManager.getShadeId()
-                ?: return Result.failure(Exception("ShadeId not found"))
-
-            val otherShadeId = if (message.senderId == myShadeId) message.receiverId else message.senderId
-            val contact = contactRepository.getOrFetchContact(otherShadeId)
-                ?: return Result.failure(Exception("Contact not found"))
-
-            val sharedSecret = cryptoManager.generateSharedSecret(myPrivateKeyHex, contact.encryptionPublicKey)
-            val derivedKey = cryptoManager.deriveConversationKey(sharedSecret, 1)
+            val derivedKeyHex = imageContent.imageKeyHex?.trim()?.takeIf { it.isNotEmpty() }
+                ?: run {
+                    val myPrivateKeyHex = keyVaultManager.getX25519PrivateKey()
+                        ?: return Result.failure(Exception("Private key not found"))
+                    val myShadeId = keyVaultManager.getShadeId()
+                        ?: return Result.failure(Exception("ShadeId not found"))
+                    val otherShadeId =
+                        if (message.senderId == myShadeId) message.receiverId else message.senderId
+                    val contact = contactRepository.getOrFetchContact(otherShadeId)
+                        ?: return Result.failure(Exception("Contact not found"))
+                    val sharedSecret = cryptoManager.generateSharedSecret(
+                        myPrivateKeyHex,
+                        contact.encryptionPublicKey,
+                    )
+                    cryptoManager.deriveConversationKey(sharedSecret, 1)
+                }
 
             val imageNonce = Hex.decode(imageContent.imageNonceHex)
-            val decryptedBytes = cryptoManager.decryptBytes(encryptedBytes, imageNonce, derivedKey)
+            val decryptedBytes = cryptoManager.decryptBytes(encryptedBytes, imageNonce, derivedKeyHex)
 
             val filePath = imageFileManager.saveDecryptedImage(message.messageId, decryptedBytes)
 

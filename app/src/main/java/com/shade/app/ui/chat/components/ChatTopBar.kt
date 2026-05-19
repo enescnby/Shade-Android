@@ -23,10 +23,12 @@ fun ChatTopBar(
     chatId: String,
     shadeId: String?,
     lastSeenText: String,
+    isGroupChat: Boolean,
     isSearchActive: Boolean,
     searchQuery: String,
     onBackClick: () -> Unit,
     onProfileClick: (String) -> Unit,
+    onGroupInfoClick: (String) -> Unit,
     onSearchToggle: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onShowBgPicker: () -> Unit,
@@ -44,8 +46,10 @@ fun ChatTopBar(
                 chatId = chatId,
                 shadeId = shadeId,
                 lastSeenText = lastSeenText,
+                isGroupChat = isGroupChat,
                 onBackClick = onBackClick,
                 onProfileClick = onProfileClick,
+                onGroupInfoClick = onGroupInfoClick,
                 onSearchToggle = onSearchToggle,
                 onShowBgPicker = onShowBgPicker
             )
@@ -95,8 +99,10 @@ private fun NormalBar(
     chatId: String,
     shadeId: String?,
     lastSeenText: String,
+    isGroupChat: Boolean,
     onBackClick: () -> Unit,
     onProfileClick: (String) -> Unit,
+    onGroupInfoClick: (String) -> Unit,
     onSearchToggle: () -> Unit,
     onShowBgPicker: () -> Unit,
 ) {
@@ -115,12 +121,21 @@ private fun NormalBar(
 
         Surface(modifier = Modifier.size(40.dp), shape = CircleShape, color = BubbleMine) {
             Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = chatName.take(1).uppercase(),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+                if (isGroupChat) {
+                    Icon(
+                        Icons.Default.Group,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                } else {
+                    Text(
+                        text = chatName.take(1).uppercase(),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
         }
 
@@ -129,18 +144,23 @@ private fun NormalBar(
         Column(
             modifier = Modifier
                 .weight(1f)
-                .clickable { onProfileClick(chatId) }
+                .clickable {
+                    if (isGroupChat) onGroupInfoClick(chatId) else onProfileClick(chatId)
+                }
         ) {
             Text(chatName, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-            // Shade ID — always visible below the name if available
-            if (!shadeId.isNullOrBlank() && shadeId != chatName) {
+            if (!isGroupChat && !shadeId.isNullOrBlank() && shadeId != chatName) {
                 Text(
                     text = shadeId,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            val subtitle = lastSeenText.ifBlank { "Profil detayları" }
+            val subtitle = when {
+                isGroupChat -> "Grup detayları"
+                lastSeenText.isNotBlank() -> lastSeenText
+                else -> "Profil detayları"
+            }
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.labelSmall,

@@ -6,6 +6,7 @@ import com.shade.app.data.repository.ContactRepositoryImpl
 import com.shade.app.data.repository.GroupRepositoryImpl
 import com.shade.app.data.repository.ImageRepositoryImpl
 import com.shade.app.data.repository.MessageRepositoryImpl
+import com.shade.app.data.repository.SenderKeyRepositoryImpl
 import com.shade.app.data.repository.WebSessionRepositoryImpl
 import com.shade.app.domain.repository.AuthRepository
 import com.shade.app.domain.repository.ChatRepository
@@ -13,6 +14,7 @@ import com.shade.app.domain.repository.ContactRepository
 import com.shade.app.domain.repository.GroupRepository
 import com.shade.app.domain.repository.ImageRepository
 import com.shade.app.domain.repository.MessageRepository
+import com.shade.app.domain.repository.SenderKeyRepository
 import com.shade.app.domain.repository.WebSessionRepository
 import dagger.Binds
 import dagger.Module
@@ -65,4 +67,10 @@ abstract class RepositoryModule {
     abstract fun bindGroupRepository(
         groupRepositoryImpl: GroupRepositoryImpl
     ): GroupRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSenderKeyRepository(
+        senderKeyRepositoryImpl: SenderKeyRepositoryImpl
+    ): SenderKeyRepository
 }

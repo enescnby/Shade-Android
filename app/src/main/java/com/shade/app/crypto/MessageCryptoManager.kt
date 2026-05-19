@@ -1,5 +1,6 @@
 package com.shade.app.crypto
 
+import android.util.Base64
 import org.bouncycastle.crypto.agreement.X25519Agreement
 import org.bouncycastle.crypto.digests.SHA256Digest
 import org.bouncycastle.crypto.generators.HKDFBytesGenerator
@@ -34,8 +35,8 @@ class MessageCryptoManager @Inject constructor(
     }
 
     fun generateSharedSecret(privateKeyHex: String, otherPublicKeyHex: String): String {
-        val privateKeyBytes = Hex.decode(privateKeyHex)
-        val otherPublicKeyBytes = Hex.decode(otherPublicKeyHex)
+        val privateKeyBytes = Hex.decode(privateKeyHex.trim())
+        val otherPublicKeyBytes = decodePublicKeyBytes(otherPublicKeyHex.trim())
 
         val privateKeyParam = X25519PrivateKeyParameters(privateKeyBytes, 0)
         val otherPublicKeyParam = X25519PublicKeyParameters(otherPublicKeyBytes, 0)
@@ -47,6 +48,20 @@ class MessageCryptoManager @Inject constructor(
         agreement.calculateAgreement(otherPublicKeyParam, sharedSecretBytes, 0)
 
         return Hex.toHexString(sharedSecretBytes)
+    }
+
+    /**
+     * Matches how the backend may return keys: Shade clients register hex,
+     * but some JSON payloads use standard base64.
+     */
+    private fun decodePublicKeyBytes(encoded: String): ByteArray {
+        val stripped = encoded.removePrefix("0x").removePrefix("0X")
+        if (stripped.length % 2 == 0 &&
+            stripped.matches(Regex("^[0-9a-fA-F]+$"))
+        ) {
+            return Hex.decode(stripped)
+        }
+        return Base64.decode(stripped, Base64.DEFAULT)
     }
 
     fun deriveConversationKey(sharedSecretHex: String, keyVersion: Int): String {

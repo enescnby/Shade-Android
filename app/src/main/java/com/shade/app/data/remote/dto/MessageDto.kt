@@ -2,33 +2,25 @@ package com.shade.app.data.remote.dto
 
 import com.google.gson.annotations.SerializedName
 
-data class InboxMessageDto(
-    @SerializedName("message_id") val messageId: String,
-    @SerializedName("sender_id") val senderId: String,
-    @SerializedName("receiver_id") val receiverId: String,
-    @SerializedName("ciphertext") val ciphertext: String,
-    @SerializedName("nonce") val nonce: String,
-    @SerializedName("message_type") val messageType: Int,
-    @SerializedName("timestamp") val timestamp: Long
-)
-
-data class InboxReceiptDto(
-    @SerializedName("message_id") val messageId: String,
-    @SerializedName("receiver_id") val receiverId: String,
-    @SerializedName("status") val status: String, // "DELIVERED" or "READ"
-    @SerializedName("timestamp") val timestamp: Long
+/**
+ * Inbox queue item — drained from `GET /api/v1/messages/inbox`.
+ * [data] is a Base64-encoded [com.shade.app.proto.WebSocketMessage] (same bytes as a WS binary frame).
+ */
+data class InboxItemDto(
+    @SerializedName("data") val data: String,
 )
 
 data class InboxResponse(
-    @SerializedName("messages") val messages: List<InboxMessageDto> = emptyList(),
-    @SerializedName("receipts") val receipts: List<InboxReceiptDto> = emptyList()
+    @SerializedName("items") val items: List<InboxItemDto> = emptyList(),
+    @SerializedName("count") val count: Int = 0,
+    @SerializedName("has_more") val hasMore: Boolean = false,
 )
 
 data class ReceiptRequest(
     @SerializedName("message_id") val messageId: String,
-    @SerializedName("status") val status: String // "READ"
+    @SerializedName("status")     val status: String, // "READ"
 )
 
 data class BatchReceiptRequest(
-    @SerializedName("receipts") val receipts: List<ReceiptRequest>
+    @SerializedName("receipts") val receipts: List<ReceiptRequest>,
 )
