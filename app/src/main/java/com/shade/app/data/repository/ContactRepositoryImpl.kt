@@ -258,8 +258,7 @@ class ContactRepositoryImpl @Inject constructor(
                     existing?.profileImagePath
                 }
 
-                val contact =
-                    existing?.copy(
+                val contact = existing?.copy(
                         encryptionPublicKey = pubkey,
                         shadeId = shadeId,
                         profileName = existing.profileName ?: displayName,
