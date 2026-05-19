@@ -45,7 +45,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.shade.app.ui.components.AvatarImage
 import com.shade.app.ui.theme.AccentPurple
 import com.shade.app.ui.theme.NeonPurple
 import kotlinx.coroutines.flow.collectLatest
@@ -117,26 +119,18 @@ fun ProfileScreen(
                     modifier = Modifier
                         .size(128.dp)
                         .background(
-                            Brush.linearGradient(
-                                colors = listOf(AccentPurple, NeonPurple)
-                            ),
+                            Brush.linearGradient(colors = listOf(AccentPurple, NeonPurple)),
                             CircleShape
                         )
                 )
-                Surface(
-                    modifier = Modifier.size(120.dp),
-                    shape = CircleShape,
-                    color = scheme.surfaceContainerHigh
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = (contact?.savedName ?: contact?.profileName ?: contact?.shadeId ?: "?").take(1).uppercase(),
-                            style = MaterialTheme.typography.displayMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = AccentPurple
-                        )
-                    }
-                }
+                AvatarImage(
+                    imagePath = contact?.profileImagePath,
+                    fallbackLetter = (contact?.savedName ?: contact?.profileName ?: contact?.shadeId ?: "?"),
+                    size = 120.dp,
+                    backgroundColor = scheme.surfaceContainerHigh,
+                    textColor = AccentPurple,
+                    fontSize = 48.sp
+                )
             }
 
             // Shade ID Card

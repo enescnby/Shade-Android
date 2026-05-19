@@ -19,8 +19,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.shade.app.data.local.entities.ContactEntity
+import com.shade.app.ui.components.AvatarImage
 
 private const val TAG = "SHADE_CONTACTS"
 
@@ -275,25 +277,20 @@ fun ContactItem(
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Surface(
-            modifier = Modifier.size(50.dp),
-            shape = MaterialTheme.shapes.medium,
-            color = if (contact.isBlocked)
+        AvatarImage(
+            imagePath = contact.profileImagePath,
+            fallbackLetter = displayName,
+            size = 50.dp,
+            backgroundColor = if (contact.isBlocked)
                 MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
             else
-                MaterialTheme.colorScheme.primaryContainer
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = displayName.take(1).uppercase(),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (contact.isBlocked)
-                        MaterialTheme.colorScheme.onErrorContainer
-                    else
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-        }
+                MaterialTheme.colorScheme.primaryContainer,
+            textColor = if (contact.isBlocked)
+                MaterialTheme.colorScheme.onErrorContainer
+            else
+                MaterialTheme.colorScheme.onPrimaryContainer,
+            fontSize = 18.sp
+        )
 
         Spacer(modifier = Modifier.width(16.dp))
 

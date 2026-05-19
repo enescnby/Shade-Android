@@ -34,6 +34,9 @@ interface ContactDao {
     @Query("UPDATE contacts SET profileName = :name WHERE shadeId = :shadeId")
     suspend fun updateProfileNameByShadeId(shadeId: String, name: String?)
 
+    @Query("UPDATE contacts SET profileImagePath = :path WHERE shadeId = :shadeId")
+    suspend fun updateProfileImageByShadeId(shadeId: String, path: String?)
+
     @Query("UPDATE contacts SET isBlocked = :isBlocked WHERE userId = :userId")
     suspend fun setBlocked(userId: String, isBlocked: Boolean)
 

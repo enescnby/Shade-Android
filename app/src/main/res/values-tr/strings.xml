@@ -104,4 +104,34 @@
     <!-- Bildirim stringleri -->
     <string name="notification_more_messages">+%d daha fazla mesaj</string>
     <string name="notification_summary">%1$d sohbetten %2$d mesaj</string>
+
+    <!-- Auth ekranı sabit etiketler -->
+    <string name="end_to_end_encrypted">Uçtan Uca Şifreli</string>
+    <string name="app_tagline">Gizli. Şifreli. Anonim.</string>
+    <string name="login_subtitle">Shade Kimliğinizle giriş yapın</string>
+    <string name="mnemonic_hint">12 kelimelik kurtarma ifadenizi boşluklarla ayırarak girin</string>
+    <string name="recovery_mnemonic_hint">12 kelimenin tamamını doğru sırayla girin</string>
+
+    <!-- Güvenlik bildirimi (kayıt ekranı) -->
+    <string name="security_notice_title">Güvenlik Bildirimi</string>
+    <string name="security_notice_body">Hesabım oluşturulduğunda kendime özel şifreleme anahtarları üretilecek. Bu anahtarlar yalnızca bende saklanır; kaybolmaları durumunda hesabıma bir daha erişemem. Bunu anlıyor ve kabul ediyorum.</string>
+    <string name="security_notice_hint">Devam etmek için güvenlik bildirimini onaylayın</string>
+
+    <!-- Güvenlik denetim ekranı -->
+    <string name="audit_screen_title">Hesap Etkinliği</string>
+    <string name="audit_info_text">Bu ekran hesabınla ilgili son 50 güvenlik olayını gösterir. Tanımadığın bir olay görürsen hesabını incele.</string>
+    <string name="audit_retry">Tekrar Dene</string>
+    <string name="audit_empty">Henüz kayıt yok.</string>
+    <string name="audit_registered">Kayıt tamamlandı</string>
+    <string name="audit_login_success">Giriş doğrulandı</string>
+    <string name="audit_login_failed_expired_challenge">Giriş başarısız: doğrulama oturumu yok veya süresi doldu</string>
+    <string name="audit_login_failed_invalid_challenge">Giriş başarısız: doğrulama kodu eşleşmedi</string>
+    <string name="audit_login_failed_account_missing">Giriş başarısız: hesap bulunamadı</string>
+    <string name="audit_login_failed_invalid_signature">Giriş başarısız: imza doğrulanamadı</string>
+    <string name="audit_login_failed_invalid_device_id">Giriş başarısız: cihaz kimliği geçersiz</string>
+    <string name="audit_login_failed_unknown_device">Giriş başarısız: bu cihaz hesaba tanımlı değil</string>
+    <string name="audit_login_failed_device_lookup">Giriş başarısız: cihaz bilgisi alınamadı</string>
+    <string name="audit_login_failed_device_update">Giriş başarısız: cihaz güncellenemedi</string>
+    <string name="audit_login_failed_device_create">Giriş başarısız: cihaz kaydedilemedi</string>
+    <string name="audit_login_failed_token_issue">Giriş başarısız: oturum oluşturulamadı</string>
 </resources>

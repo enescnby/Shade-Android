@@ -1,5 +1,6 @@
 package com.shade.app.data.repository
 
+import android.util.Log
 import com.shade.app.data.remote.api.AuthService
 import com.shade.app.data.remote.dto.LoginInitRequest
 import com.shade.app.data.remote.dto.LoginInitResponse
@@ -12,6 +13,8 @@ import com.shade.app.domain.repository.AuthRepository
 import com.shade.app.security.KeyVaultManager
 import javax.inject.Inject
 import javax.inject.Singleton
+
+private const val TAG = "AuthRepository"
 
 @Singleton
 class AuthRepositoryImpl @Inject constructor(
@@ -55,11 +58,15 @@ class AuthRepositoryImpl @Inject constructor(
         return try {
             val response = authService.loginInit(LoginInitRequest(shadeId))
             if (response.isSuccessful && response.body() != null) {
+                Log.d(TAG, "loginInit success — challenge received")
                 Result.success(response.body()!!)
             } else {
-                Result.failure(Exception("Login can not initialized"))
+                val errorBody = response.errorBody()?.string() ?: "(no body)"
+                Log.e(TAG, "loginInit failed — HTTP ${response.code()} ${response.message()} | body=$errorBody")
+                Result.failure(Exception("Login init failed (${response.code()}): $errorBody"))
             }
         } catch (e: Exception) {
+            Log.e(TAG, "loginInit exception: ${e.javaClass.simpleName}: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -76,6 +83,7 @@ class AuthRepositoryImpl @Inject constructor(
                 LoginVerifyRequest(shadeId, challenge, signature, deviceModel, fcmToken)
             )
             if (response.isSuccessful && response.body() != null) {
+                Log.d(TAG, "loginVerify success — token received")
                 val body = response.body()!!
                 Result.success(
                     AuthResult(
@@ -87,9 +95,12 @@ class AuthRepositoryImpl @Inject constructor(
                     )
                 )
             } else {
-                Result.failure(Exception("Verification failed"))
+                val errorBody = response.errorBody()?.string() ?: "(no body)"
+                Log.e(TAG, "loginVerify failed — HTTP ${response.code()} ${response.message()} | body=$errorBody")
+                Result.failure(Exception("Verification failed (${response.code()}): $errorBody"))
             }
         } catch (e: Exception) {
+            Log.e(TAG, "loginVerify exception: ${e.javaClass.simpleName}: ${e.message}", e)
             Result.failure(e)
         }
     }

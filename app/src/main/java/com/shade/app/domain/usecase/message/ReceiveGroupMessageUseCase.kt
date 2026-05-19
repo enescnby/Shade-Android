@@ -183,6 +183,11 @@ class ReceiveGroupMessageUseCase @Inject constructor(
             .ifEmpty { senderContact?.shadeId.orEmpty() }
             .ifEmpty { payload.senderId }
 
+        val msgType = when (payload.type) {
+            MessageType.IMAGE -> com.shade.app.data.local.entities.MessageType.IMAGE
+            MessageType.AUDIO -> com.shade.app.data.local.entities.MessageType.AUDIO
+            else              -> com.shade.app.data.local.entities.MessageType.TEXT
+        }
         val entity = MessageEntity(
             messageId = payload.messageId,
             senderId = senderShadeId,
@@ -190,23 +195,28 @@ class ReceiveGroupMessageUseCase @Inject constructor(
             isGroupThread = true,
             content = plaintext,
             timestamp = payload.timestamp,
-            messageType = when (payload.type) {
-                MessageType.IMAGE -> com.shade.app.data.local.entities.MessageType.IMAGE
-                else              -> com.shade.app.data.local.entities.MessageType.TEXT
-            },
+            messageType = msgType,
             status = MessageStatus.DELIVERED,
         )
         messageRepository.insertMessage(entity)
 
+        // Son mesaj önizlemesi: medya türlerine göre emoji kullan, metin mesajları ham içeriğidir
+        val preview = when (msgType) {
+            com.shade.app.data.local.entities.MessageType.IMAGE -> "📷 Fotoğraf"
+            com.shade.app.data.local.entities.MessageType.AUDIO -> "🎤 Ses mesajı"
+            com.shade.app.data.local.entities.MessageType.FILE  -> "퓎 Dosya"
+            else -> plaintext
+        }
+
         val chatId = payload.groupId
         if (activeChatTracker.activeShadeId == chatId) {
-            chatRepository.updateLastMessage(chatId, plaintext, payload.timestamp)
+            chatRepository.updateLastMessage(chatId, preview, payload.timestamp)
         } else {
-            chatRepository.updateChatWithNewMessage(chatId, plaintext, payload.timestamp)
+            chatRepository.updateChatWithNewMessage(chatId, preview, payload.timestamp)
             val senderLabel = senderContact
                 ?.let { it.savedName ?: it.profileName ?: it.shadeId }
                 ?: senderShadeId
-            notificationHelper.showMessageNotification(senderLabel, plaintext, chatId)
+            notificationHelper.showMessageNotification(senderLabel, preview, chatId)
         }
     }
 

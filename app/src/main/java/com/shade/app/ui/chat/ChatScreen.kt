@@ -85,9 +85,6 @@ fun ChatScreen(
     // ── Scroll ───────────────────────────────────────────────────────────────
     val listState = rememberLazyListState()
 
-    LaunchedEffect(uiState.messages.size) {
-        if (listState.firstVisibleItemIndex <= 1) listState.animateScrollToItem(0)
-    }
     LaunchedEffect(uiState.initialScrollIndex) {
         uiState.initialScrollIndex?.let { listState.scrollToItem(it) }
     }
@@ -134,6 +131,7 @@ fun ChatScreen(
                 chatName = uiState.chatName,
                 chatId = uiState.chatId,
                 shadeId = uiState.contactShadeId,
+                contactImagePath = uiState.contactImagePath,
                 lastSeenText = uiState.lastSeenText,
                 isGroupChat = uiState.isGroupChat,
                 isSearchActive = uiState.isSearchActive,
@@ -167,49 +165,66 @@ fun ChatScreen(
                     viewModel = viewModel
                 )
 
-                MessageInput(
-                    messageText = messageText,
-                    replyingTo = uiState.replyingToMessage,
-                    editingMessage = uiState.editingMessage,
-                    isRecording = isRecording,
-                    onMessageTextChange = { messageText = it },
-                    onSendOrConfirm = {
-                        if (uiState.editingMessage != null) {
-                            viewModel.confirmEdit(messageText)
-                        } else {
-                            viewModel.sendMessage(messageText)
-                        }
-                        messageText = ""
-                    },
-                    onCancelReply = { viewModel.cancelReply() },
-                    onCancelEditing = { viewModel.cancelEditing(); messageText = "" },
-                    onPickImage = {
-                        photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                    },
-                    onPickFile = { filePickerLauncher.launch("*/*") },
-                    onRecordStart = {
-                        val hasPermission = ContextCompat.checkSelfPermission(
-                            context, Manifest.permission.RECORD_AUDIO
-                        ) == PackageManager.PERMISSION_GRANTED
-                        if (hasPermission) {
-                            isRecording = true
-                            audioRecorder.start(context)
-                        } else {
-                            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                        }
-                    },
-                    onRecordCancel = {
-                        isRecording = false
-                        audioRecorder.cancel()
-                    },
-                    onRecordStop = {
-                        isRecording = false
-                        val (file, duration) = audioRecorder.stop()
-                        if (file != null && duration > 500) {
-                            viewModel.sendAudio(file, duration)
-                        }
+                if (uiState.isGroupChat && !uiState.isGroupMember) {
+                    // Kullanıcı gruptan ayrılmış — mesaj gönderemesin
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(vertical = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Bu gruptan ayrıldınız",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextSecondary
+                        )
                     }
-                )
+                } else {
+                    MessageInput(
+                        messageText = messageText,
+                        replyingTo = uiState.replyingToMessage,
+                        editingMessage = uiState.editingMessage,
+                        isRecording = isRecording,
+                        onMessageTextChange = { messageText = it },
+                        onSendOrConfirm = {
+                            if (uiState.editingMessage != null) {
+                                viewModel.confirmEdit(messageText)
+                            } else {
+                                viewModel.sendMessage(messageText)
+                            }
+                            messageText = ""
+                        },
+                        onCancelReply = { viewModel.cancelReply() },
+                        onCancelEditing = { viewModel.cancelEditing(); messageText = "" },
+                        onPickImage = {
+                            photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        },
+                        onPickFile = { filePickerLauncher.launch("*/*") },
+                        onRecordStart = {
+                            val hasPermission = ContextCompat.checkSelfPermission(
+                                context, Manifest.permission.RECORD_AUDIO
+                            ) == PackageManager.PERMISSION_GRANTED
+                            if (hasPermission) {
+                                isRecording = true
+                                audioRecorder.start(context)
+                            } else {
+                                audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        },
+                        onRecordCancel = {
+                            isRecording = false
+                            audioRecorder.cancel()
+                        },
+                        onRecordStop = {
+                            isRecording = false
+                            val (file, duration) = audioRecorder.stop()
+                            if (file != null && duration > 500) {
+                                viewModel.sendAudio(file, duration)
+                            }
+                        }
+                    )
+                }
             }
         }
     }
@@ -236,6 +251,9 @@ private fun ColumnScope.SearchResults(
                 val isMe = message.senderId == uiState.myShadeId
                 MessageBubble(
                     message = message, isMe = isMe,
+                    isGroupChat = uiState.isGroupChat,
+                    senderName = if (!isMe) uiState.groupSenderNames[message.senderId] else null,
+                    senderShadeId = if (!isMe) uiState.groupSenderShadeIds[message.senderId] else null,
                     isDownloading = uiState.downloadingMessageId == message.messageId,
                     downloadProgress = if (uiState.downloadingMessageId == message.messageId) uiState.downloadProgress else 0f,
                     isDownloadingFile = uiState.downloadingFileMessageId == message.messageId,
@@ -267,6 +285,13 @@ private fun ColumnScope.MessageList(
     val pagedMessages = viewModel.pagedMessages.collectAsLazyPagingItems()
     val chatBgColor = uiState.chatBackgroundColor?.let { Color(it) }
 
+    // Yeni mesaj geldiğinde (paged list güncellenince) otomatik en alta kaydır
+    LaunchedEffect(pagedMessages.itemCount) {
+        if (pagedMessages.itemCount > 0 && listState.firstVisibleItemIndex <= 1) {
+            listState.animateScrollToItem(0)
+        }
+    }
+
     LazyColumn(
         state = listState,
         modifier = Modifier
@@ -285,6 +310,9 @@ private fun ColumnScope.MessageList(
             val isMe = message.senderId == uiState.myShadeId
             MessageBubble(
                 message = message, isMe = isMe,
+                isGroupChat = uiState.isGroupChat,
+                senderName = if (!isMe) uiState.groupSenderNames[message.senderId] else null,
+                senderShadeId = if (!isMe) uiState.groupSenderShadeIds[message.senderId] else null,
                 isDownloading = uiState.downloadingMessageId == message.messageId,
                 downloadProgress = if (uiState.downloadingMessageId == message.messageId) uiState.downloadProgress else 0f,
                 isDownloadingFile = uiState.downloadingFileMessageId == message.messageId,

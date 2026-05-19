@@ -50,8 +50,10 @@ class ContactsViewModel @Inject constructor(
         contactRepository.getAllContacts()
             .onStart { _uiState.update { it.copy(isLoading = true) } }
             .onEach { contacts ->
-                Log.d(TAG, "Kişi listesi güncellendi: ${contacts.size} kişi")
-                _uiState.update { it.copy(contacts = contacts, isLoading = false) }
+                // Sadece kullanıcının kaydettiği kişileri göster (savedName != null)
+                val saved = contacts.filter { it.savedName != null }
+                Log.d(TAG, "Kişi listesi güncellendi: ${saved.size} kayıtlı / ${contacts.size} toplam")
+                _uiState.update { it.copy(contacts = saved, isLoading = false) }
             }
             .catch { e ->
                 Log.e(TAG, "Kişi listesi alınamadı: ${e.message}")

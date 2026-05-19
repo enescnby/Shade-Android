@@ -35,20 +35,20 @@ class SendImageMessageUseCase @Inject constructor(
 ) {
     private val gson = Gson()
 
-    suspend operator fun invoke(receiverShadeId: String, imageUri: Uri): Result<Unit> {
-        return try {
+    suspend operator fun invoke(receiverShadeId: String, imageUri: Uri) {
+        try {
             val compressedBytes = imageProcessor.compressImage(imageUri)
             val thumbnailBytes = imageProcessor.generateThumbnail(imageUri)
             val (width, height) = imageProcessor.getImageDimensions(imageUri)
 
             val contact = contactRepository.getOrFetchContact(receiverShadeId)
-                ?: return Result.failure(Exception("Contact not found"))
+                ?: throw Exception("Contact not found")
             val myPrivateKeyHex = keyVaultManager.getX25519PrivateKey()
-                ?: return Result.failure(Exception("Private key not found"))
+                ?: throw Exception("Private key not found")
             val myShadeId = keyVaultManager.getShadeId()
-                ?: return Result.failure(Exception("ShadeId not found"))
+                ?: throw Exception("ShadeId not found")
             val myUserId = keyVaultManager.getUserId()
-                ?: return Result.failure(Exception("UserId not found"))
+                ?: throw Exception("UserId not found")
 
             val sharedSecret = cryptoManager.generateSharedSecret(myPrivateKeyHex, contact.encryptionPublicKey)
             val derivedKey = cryptoManager.deriveConversationKey(sharedSecret, 1)
@@ -56,9 +56,7 @@ class SendImageMessageUseCase @Inject constructor(
             val (encryptedImageBytes, imageNonce) = cryptoManager.encryptBytes(compressedBytes, derivedKey)
 
             val uploadResult = imageRepository.uploadEncryptedImage(encryptedImageBytes)
-            val uploadresponse = uploadResult.getOrElse {
-                return Result.failure(it)
-            }
+            val uploadresponse = uploadResult.getOrThrow()
 
             val msgId = UUID.randomUUID().toString()
             val ts = System.currentTimeMillis()
@@ -112,11 +110,9 @@ class SendImageMessageUseCase @Inject constructor(
                 timestamp = ts
             )
 
-            Result.success(Unit)
-
         } catch (e: Exception) {
             Log.e("SendImage", "Image send failed: ${e.message}", e)
-            Result.failure(e)
+            throw e
         }
     }
 }

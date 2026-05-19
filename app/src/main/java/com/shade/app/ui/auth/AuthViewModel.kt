@@ -6,8 +6,11 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.messaging.FirebaseMessaging
 import com.shade.app.R
 import com.shade.app.crypto.MnemonicManager
+import com.shade.app.data.remote.api.UserService
+import com.shade.app.data.remote.dto.UpdateDisplayNameRequest
 import com.shade.app.domain.usecase.auth.LoginUseCase
 import com.shade.app.domain.usecase.auth.RegisterUseCase
+import com.shade.app.security.KeyVaultManager
 import com.shade.app.ui.util.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,7 +34,9 @@ sealed class AuthUiState {
 class AuthViewModel @Inject constructor(
     private val registerUseCase: RegisterUseCase,
     private val loginUseCase: LoginUseCase,
-    private val mnemonicManager: MnemonicManager
+    private val mnemonicManager: MnemonicManager,
+    private val userService: UserService,
+    private val keyVaultManager: KeyVaultManager,
 ): ViewModel() {
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val uiState: StateFlow<AuthUiState> = _uiState
@@ -57,7 +62,7 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    fun register(deviceModel: String) {
+    fun register(deviceModel: String, displayName: String = "") {
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
             Log.d(TAG, "register() called — deviceModel=$deviceModel fcmToken=${fcmToken.take(10)}...")
@@ -67,6 +72,18 @@ class AuthViewModel @Inject constructor(
 
             result.onSuccess { authResult ->
                 Log.d(TAG, "register success — shadeId=${authResult.shadeId}")
+
+                // Display name ayarla (boş değilse)
+                if (displayName.isNotBlank()) {
+                    try {
+                        val token = "Bearer ${keyVaultManager.getAccessToken()}"
+                        userService.updateDisplayName(token, UpdateDisplayNameRequest(displayName.trim()))
+                        Log.d(TAG, "display name set: $displayName")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "display name set failed (non-critical): ${e.message}")
+                    }
+                }
+
                 _uiState.value = AuthUiState.Success(
                     message = UiText.StringResource(R.string.account_created),
                     mnemonic = currentMnemonic,

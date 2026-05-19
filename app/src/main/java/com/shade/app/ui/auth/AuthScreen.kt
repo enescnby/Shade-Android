@@ -73,7 +73,7 @@ fun AuthScreen(
         onLogin = { shadeId, mnemonic ->
             viewModel.login(shadeId, mnemonic, "Android Device")
         },
-        onRegister = {
+        onRegister = { _ ->
             viewModel.register("Android Device")
         },
         onResetUiState = {
@@ -87,7 +87,7 @@ fun AuthScreen(
 fun AuthScreenContent(
     uiState: AuthUiState,
     onLogin: (String, List<String>) -> Unit,
-    onRegister: () -> Unit,
+    onRegister: (String) -> Unit = {},
     onResetUiState: () -> Unit,
     onAuthSuccess: () -> Unit
 ) {
@@ -157,7 +157,10 @@ fun AuthScreenContent(
                             onRegister = onRegister,
                             onBack = { currentStep = AuthStep.WELCOME },
                             snackbarHostState = snackbarHostState,
-                            onAuthSuccess = onAuthSuccess
+                            onAuthSuccess = {
+                                onResetUiState()
+                                currentStep = AuthStep.LOGIN
+                            },
                         )
                         AuthStep.RECOVER -> RecoveryLayout(
                             uiState = uiState,
@@ -226,7 +229,7 @@ private fun SecurityBadge() {
             )
             Spacer(Modifier.width(5.dp))
             Text(
-                text = "End-to-End Encrypted",
+                text = stringResource(R.string.end_to_end_encrypted),
                 style = MaterialTheme.typography.labelSmall,
                 color = SuccessGreen,
                 fontWeight = FontWeight.SemiBold
@@ -333,7 +336,7 @@ fun WelcomeLayout(onNavigate: (AuthStep) -> Unit) {
 
         // Tagline
         Text(
-            text = "Private. Encrypted. Anonymous.",
+            text = stringResource(R.string.app_tagline),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             letterSpacing = 0.5.sp
@@ -505,7 +508,7 @@ fun LoginLayout(
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Sign in with your Shade ID",
+                text = stringResource(R.string.login_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -530,7 +533,7 @@ fun LoginLayout(
 
             Spacer(modifier = Modifier.height(10.dp))
             Text(
-                text = "Enter your 12-word recovery phrase separated by spaces",
+                text = stringResource(R.string.mnemonic_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 textAlign = TextAlign.Start,
@@ -564,7 +567,7 @@ fun LoginLayout(
 @Composable
 fun RegisterLayout(
     uiState: AuthUiState,
-    onRegister: () -> Unit,
+    onRegister: (String) -> Unit,
     onBack: () -> Unit,
     onAuthSuccess: () -> Unit,
     snackbarHostState: SnackbarHostState
@@ -612,8 +615,8 @@ fun RegisterLayout(
             SecurityBadge()
             Spacer(modifier = Modifier.height(28.dp))
 
-            // ── Security disclaimer card ──────────────────────────────────────
-            Surface(
+            // ── Security disclaimer card (kayıt sonrası gizlenir) ─────────────
+            if (uiState !is AuthUiState.Success) Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { disclaimerChecked = !disclaimerChecked },
@@ -640,14 +643,14 @@ fun RegisterLayout(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Güvenlik Bildirimi",
+                            text = stringResource(R.string.security_notice_title),
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onBackground
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Hesabım oluşturulduğunda kendime özel şifreleme anahtarları üretilecek. Bu anahtarlar yalnızca bende saklanır; kaybolmaları durumunda hesabıma bir daha erişemem. Bunu anlıyor ve kabul ediyorum.",
+                            text = stringResource(R.string.security_notice_body),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             lineHeight = 18.sp
@@ -670,7 +673,7 @@ fun RegisterLayout(
             if (uiState !is AuthUiState.Success) {
                 GradientButton(
                     text = stringResource(R.string.register_safely),
-                    onClick = onRegister,
+                    onClick = { onRegister("") },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = disclaimerChecked,
                     isLoading = uiState is AuthUiState.Loading
@@ -679,7 +682,7 @@ fun RegisterLayout(
                 if (!disclaimerChecked) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = "Devam etmek için güvenlik bildirimini onaylayın",
+                        text = stringResource(R.string.security_notice_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         textAlign = TextAlign.Center
@@ -689,7 +692,7 @@ fun RegisterLayout(
 
             when (uiState) {
                 is AuthUiState.Success -> {
-                    SuccessSection(uiState, snackbarHostState)
+                    SuccessSection(uiState, snackbarHostState, onAuthSuccess)
                 }
                 is AuthUiState.Error -> {
                     ErrorCard(message = uiState.message.asString())
@@ -705,7 +708,7 @@ fun RegisterLayout(
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-fun SuccessSection(state: AuthUiState.Success, snackbarHostState: SnackbarHostState) {
+fun SuccessSection(state: AuthUiState.Success, snackbarHostState: SnackbarHostState, onAuthSuccess: () -> Unit = {}) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -861,6 +864,24 @@ fun SuccessSection(state: AuthUiState.Success, snackbarHostState: SnackbarHostSt
                 },
                 modifier = Modifier.fillMaxWidth()
             )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedButton(
+                onClick = onAuthSuccess,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                border = BorderStroke(1.5.dp, AccentPurple.copy(alpha = 0.6f)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentPurple),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.login),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }
@@ -943,7 +964,7 @@ fun RecoveryLayout(
 
             Spacer(modifier = Modifier.height(10.dp))
             Text(
-                text = "Enter all 12 words in the correct order",
+                text = stringResource(R.string.recovery_mnemonic_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 textAlign = TextAlign.Start,

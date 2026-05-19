@@ -47,7 +47,7 @@ data class MessageEntity(
 )
 
 enum class MessageType {
-    TEXT, IMAGE, AUDIO, FILE
+    TEXT, IMAGE, AUDIO, FILE, SYSTEM
 }
 
 enum class MessageStatus {

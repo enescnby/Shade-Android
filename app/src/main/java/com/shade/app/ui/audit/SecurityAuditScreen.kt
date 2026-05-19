@@ -1,5 +1,6 @@
 package com.shade.app.ui.audit
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,9 +23,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.shade.app.R
 import com.shade.app.data.remote.dto.AuditLogItem
 import java.time.Instant
 import java.time.ZoneId
@@ -41,15 +44,15 @@ fun SecurityAuditScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Hesap Etkinliği") },
+                title = { Text(stringResource(R.string.audit_screen_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Geri")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                     }
                 },
                 actions = {
                     IconButton(onClick = { viewModel.fetchLogs() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Yenile")
+                        Icon(Icons.Default.Refresh, contentDescription = null)
                     }
                 }
             )
@@ -80,7 +83,7 @@ fun SecurityAuditScreen(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Bu ekran hesabınla ilgili son 50 güvenlik olayını gösterir. Tanımadığın bir olay görürsen hesabını incele.",
+                        text = stringResource(R.string.audit_info_text),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -106,7 +109,7 @@ fun SecurityAuditScreen(
                             Text(uiState.error ?: "", color = MaterialTheme.colorScheme.error)
                             Spacer(modifier = Modifier.height(16.dp))
                             Button(onClick = { viewModel.fetchLogs() }) {
-                                Text("Tekrar Dene")
+                                Text(stringResource(R.string.audit_retry))
                             }
                         }
                     }
@@ -114,7 +117,7 @@ fun SecurityAuditScreen(
                 uiState.logs.isEmpty() -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            "Henüz kayıt yok.",
+                            stringResource(R.string.audit_empty),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -139,7 +142,8 @@ fun SecurityAuditScreen(
 private data class AuditLogVisual(
     val icon: ImageVector,
     val iconColor: Color,
-    val label: String,
+    @StringRes val labelResId: Int = 0,
+    val labelOverride: String? = null,
 )
 
 private fun auditLogVisual(actionType: String): AuditLogVisual {
@@ -150,29 +154,29 @@ private fun auditLogVisual(actionType: String): AuditLogVisual {
     val deviceBlue = Color(0xFF1E88E5)
     val infraGray = Color(0xFF78909C)
     return when (actionType) {
-        "USER_REGISTERED" -> AuditLogVisual(Icons.Default.PersonAdd, registerPurple, "Kayıt tamamlandı")
-        "LOGIN_SUCCESS" -> AuditLogVisual(Icons.Default.LockOpen, successGreen, "Giriş doğrulandı")
+        "USER_REGISTERED" -> AuditLogVisual(Icons.Default.PersonAdd, registerPurple, R.string.audit_registered)
+        "LOGIN_SUCCESS" -> AuditLogVisual(Icons.Default.LockOpen, successGreen, R.string.audit_login_success)
         "LOGIN_FAILED_INVALID_OR_EXPIRED_CHALLENGE" ->
-            AuditLogVisual(Icons.Default.Warning, failOrange, "Giriş başarısız: doğrulama oturumu yok veya süresi doldu")
+            AuditLogVisual(Icons.Default.Warning, failOrange, R.string.audit_login_failed_expired_challenge)
         "LOGIN_FAILED_INVALID_CHALLENGE" ->
-            AuditLogVisual(Icons.Default.Warning, failOrange, "Giriş başarısız: doğrulama kodu eşleşmedi")
+            AuditLogVisual(Icons.Default.Warning, failOrange, R.string.audit_login_failed_invalid_challenge)
         "LOGIN_FAILED_ACCOUNT_MISSING" ->
-            AuditLogVisual(Icons.Default.Warning, failRed, "Giriş başarısız: hesap bulunamadı")
+            AuditLogVisual(Icons.Default.Warning, failRed, R.string.audit_login_failed_account_missing)
         "LOGIN_FAILED_INVALID_SIGNATURE" ->
-            AuditLogVisual(Icons.Default.Warning, failRed, "Giriş başarısız: imza doğrulanamadı")
+            AuditLogVisual(Icons.Default.Warning, failRed, R.string.audit_login_failed_invalid_signature)
         "LOGIN_FAILED_INVALID_DEVICE_ID" ->
-            AuditLogVisual(Icons.Default.Smartphone, failOrange, "Giriş başarısız: cihaz kimliği geçersiz")
+            AuditLogVisual(Icons.Default.Smartphone, failOrange, R.string.audit_login_failed_invalid_device_id)
         "LOGIN_FAILED_UNKNOWN_DEVICE" ->
-            AuditLogVisual(Icons.Default.Smartphone, failOrange, "Giriş başarısız: bu cihaz hesaba tanımlı değil")
+            AuditLogVisual(Icons.Default.Smartphone, failOrange, R.string.audit_login_failed_unknown_device)
         "LOGIN_FAILED_DEVICE_LOOKUP" ->
-            AuditLogVisual(Icons.Default.Smartphone, deviceBlue, "Giriş başarısız: cihaz bilgisi alınamadı")
+            AuditLogVisual(Icons.Default.Smartphone, deviceBlue, R.string.audit_login_failed_device_lookup)
         "LOGIN_FAILED_DEVICE_UPDATE" ->
-            AuditLogVisual(Icons.Default.Smartphone, deviceBlue, "Giriş başarısız: cihaz güncellenemedi")
+            AuditLogVisual(Icons.Default.Smartphone, deviceBlue, R.string.audit_login_failed_device_update)
         "LOGIN_FAILED_DEVICE_CREATE" ->
-            AuditLogVisual(Icons.Default.Smartphone, deviceBlue, "Giriş başarısız: cihaz kaydedilemedi")
+            AuditLogVisual(Icons.Default.Smartphone, deviceBlue, R.string.audit_login_failed_device_create)
         "LOGIN_FAILED_TOKEN_ISSUE" ->
-            AuditLogVisual(Icons.Default.ErrorOutline, infraGray, "Giriş başarısız: oturum oluşturulamadı")
-        else -> AuditLogVisual(Icons.Default.DeviceUnknown, Color.Gray, actionType)
+            AuditLogVisual(Icons.Default.ErrorOutline, infraGray, R.string.audit_login_failed_token_issue)
+        else -> AuditLogVisual(Icons.Default.DeviceUnknown, Color.Gray, labelOverride = actionType)
     }
 }
 
@@ -181,7 +185,7 @@ fun AuditLogCard(log: AuditLogItem) {
     val visual = auditLogVisual(log.actionType)
     val icon = visual.icon
     val iconColor = visual.iconColor
-    val label = visual.label
+    val label = visual.labelOverride ?: stringResource(visual.labelResId)
 
     val formattedTime = try {
         val instant = Instant.parse(log.timestamp)

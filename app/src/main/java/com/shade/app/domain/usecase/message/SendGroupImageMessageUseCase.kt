@@ -52,7 +52,8 @@ class SendGroupImageMessageUseCase @Inject constructor(
         groupId: String,
         @Suppress("UNUSED_PARAMETER") groupName: String,
         imageUri: Uri,
-    ): Result<Unit> = runCatching {
+    ) {
+        try {
         val compressedBytes = imageProcessor.compressImage(imageUri)
         val thumbnailBytes = imageProcessor.generateThumbnail(imageUri)
         val (width, height) = imageProcessor.getImageDimensions(imageUri)
@@ -154,7 +155,11 @@ class SendGroupImageMessageUseCase @Inject constructor(
         chatRepository.updateLastMessage(chatId = groupId, lastMessage = preview, timestamp = ts)
 
         if (!sent) Log.w(TAG, "WebSocket send failed for group image $msgId")
-    }.onFailure { Log.e(TAG, "Group image send failed: ${it.message}", it) }
+        } catch (e: Exception) {
+            Log.e(TAG, "Group image send failed: ${e.message}", e)
+            throw e
+        }
+    }
 
     private companion object {
         private const val TAG = "SendGroupImage"

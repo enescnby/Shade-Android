@@ -2,9 +2,12 @@ package com.shade.app.ui.myprofile
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.shade.app.data.remote.api.MediaService
 import com.shade.app.data.remote.api.UserService
+import com.shade.app.data.remote.dto.UpdateAvatarRequest
 import com.shade.app.data.remote.dto.UpdateDisplayNameRequest
 import com.shade.app.data.repository.AppPrefsRepository
 import com.shade.app.security.KeyVaultManager
@@ -16,6 +19,9 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
 import java.io.FileOutputStream
 import javax.inject.Inject
@@ -32,6 +38,7 @@ class MyProfileViewModel @Inject constructor(
     private val keyVaultManager: KeyVaultManager,
     private val appPrefsRepository: AppPrefsRepository,
     private val userService: UserService,
+    private val mediaService: MediaService,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -80,32 +87,80 @@ class MyProfileViewModel @Inject constructor(
         }
     }
 
-    /** Galeri'den gelen URI'yi uygulamanın dosya dizinine kopyalar ve path'i kaydeder. */
+    /** Galeri'den gelen URI'yi yükler: yerel kaydeder → backend'e upload eder → avatar endpoint'ini günceller. */
     fun saveProfilePhoto(uri: Uri) {
         viewModelScope.launch {
             try {
+                // 1. URI'dan bytes'ı ana thread dışında oku
+                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                if (bytes == null || bytes.isEmpty()) {
+                    Log.e("MyProfile", "URI'dan veri okunamadı: $uri")
+                    return@launch
+                }
+
+                // 2. Yerel dosyaya yaz
                 val dir = File(context.filesDir, "profile").also { it.mkdirs() }
                 val dest = File(dir, "avatar.jpg")
-                context.contentResolver.openInputStream(uri)?.use { input ->
-                    FileOutputStream(dest).use { output ->
-                        input.copyTo(output)
-                    }
-                }
+                dest.writeBytes(bytes)
+
+                // 3. Yerel path'i kaydet (hemen UI'da görünsün)
                 appPrefsRepository.setProfilePhotoPath(dest.absolutePath)
+
+                // 4. Backend'e upload et
+                val token = keyVaultManager.getAccessToken() ?: run {
+                    Log.w("MyProfile", "Token alınamadı")
+                    _saveSuccess.emit(Unit)
+                    return@launch
+                }
+                val requestBody = dest.asRequestBody("image/jpeg".toMediaTypeOrNull())
+                val part = MultipartBody.Part.createFormData("image", dest.name, requestBody)
+                val uploadResponse = mediaService.uploadImage("Bearer $token", part)
+
+                if (uploadResponse.isSuccessful) {
+                    val imageId = uploadResponse.body()?.imageId
+                    if (imageId != null) {
+                        // 5. Avatar endpoint'ini güncelle
+                        val avatarResponse = userService.updateAvatar(
+                            "Bearer $token",
+                            UpdateAvatarRequest(imageId)
+                        )
+                        if (!avatarResponse.isSuccessful) {
+                            Log.w("MyProfile", "Avatar güncelleme başarısız: ${avatarResponse.code()}")
+                        } else {
+                            Log.i("MyProfile", "Avatar başarıyla güncellendi: $imageId")
+                        }
+                    }
+                } else {
+                    Log.w("MyProfile", "Fotoğraf upload başarısız: ${uploadResponse.code()} ${uploadResponse.errorBody()?.string()}")
+                }
+
                 _saveSuccess.emit(Unit)
             } catch (e: Exception) {
-                android.util.Log.e("MyProfile", "Fotoğraf kaydedilemedi: ${e.message}")
+                Log.e("MyProfile", "Fotoğraf kaydedilemedi: ${e::class.simpleName}: ${e.message}", e)
+                _saveSuccess.emit(Unit)
             }
         }
     }
 
-    /** Profil fotoğrafını kaldır. */
+    /** Profil fotoğrafını kaldırır: yerel dosyayı siler → backend'e bildirir. */
     fun removeProfilePhoto() {
         viewModelScope.launch {
+            // 1. Yerel dosyayı sil
             val path = _uiState.value.profilePhotoPath
             if (path != null) {
                 File(path).delete()
                 appPrefsRepository.setProfilePhotoPath(null)
+            }
+
+            // 2. Backend'e bildir
+            try {
+                val token = keyVaultManager.getAccessToken() ?: return@launch
+                val response = userService.deleteAvatar("Bearer $token")
+                if (!response.isSuccessful) {
+                    Log.w("MyProfile", "Avatar silme başarısız: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                Log.e("MyProfile", "Avatar silinemedi: ${e.message}")
             }
         }
     }

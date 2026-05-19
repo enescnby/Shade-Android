@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,6 +15,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,16 +24,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
+import com.shade.app.data.local.entities.ContactEntity
 import com.shade.app.data.local.entities.GroupMemberEntity
+import com.shade.app.data.local.entities.MessageEntity
 import com.shade.app.ui.theme.AccentPurple
 import com.shade.app.ui.theme.TextMuted
 import com.shade.app.ui.theme.TextSecondary
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,6 +56,7 @@ fun GroupDetailScreen(
     var confirmTarget by remember { mutableStateOf<GroupMemberEntity?>(null) }
     var confirmLeave by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var showAddMemberDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -89,11 +98,26 @@ fun GroupDetailScreen(
             Spacer(Modifier.height(8.dp))
 
             ActionRow(
+                isOwner = state.isOwner,
                 onInviteClick = viewModel::createInvite,
                 onLeaveClick = { confirmLeave = true },
+                onAddMemberClick = { showAddMemberDialog = true },
             )
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            // ── Gönderilen Medyalar ──────────────────────────────────────────
+            if (state.mediaMessages.isNotEmpty()) {
+                Text(
+                    text = "Gönderilen Medyalar",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                )
+                MediaRow(mediaMessages = state.mediaMessages)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            }
 
             Text(
                 text = "Üyeler (${state.memberCount})",
@@ -124,6 +148,18 @@ fun GroupDetailScreen(
     }
 
     // ── Dialogs ──────────────────────────────────────────────────────────────
+    if (showAddMemberDialog) {
+        AddMemberDialog(
+            savedContacts = state.savedContacts,
+            currentMemberUserIds = state.members.map { it.userId }.toSet(),
+            onConfirm = { shadeId ->
+                showAddMemberDialog = false
+                viewModel.addMemberByShadeId(shadeId)
+            },
+            onDismiss = { showAddMemberDialog = false },
+        )
+    }
+
     state.inviteCode?.let { code ->
         InviteCodeDialog(code = code, onDismiss = viewModel::dismissInvite)
     }
@@ -233,36 +269,52 @@ private fun GroupHeader(name: String, memberCount: Int) {
 
 @Composable
 private fun ActionRow(
+    isOwner: Boolean,
     onInviteClick: () -> Unit,
     onLeaveClick: () -> Unit,
+    onAddMemberClick: () -> Unit,
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        OutlinedButton(
-            onClick = onInviteClick,
-            modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentPurple),
-        ) {
-            Icon(Icons.Default.Add, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text("Davet linki")
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(
+                onClick = onInviteClick,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentPurple),
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Davet linki")
+            }
+            OutlinedButton(
+                onClick = onLeaveClick,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error,
+                ),
+            ) {
+                Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Ayrıl")
+            }
         }
-        OutlinedButton(
-            onClick = onLeaveClick,
-            modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = MaterialTheme.colorScheme.error,
-            ),
-        ) {
-            Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text("Ayrıl")
+        if (isOwner) {
+            OutlinedButton(
+                onClick = onAddMemberClick,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentPurple),
+            ) {
+                Icon(Icons.Default.PersonAdd, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Üye Ekle")
+            }
         }
     }
 }
@@ -328,6 +380,135 @@ private fun MemberRow(
             )
         }
     }
+}
+
+@Composable
+private fun AddMemberDialog(
+    savedContacts: List<ContactEntity>,
+    currentMemberUserIds: Set<String>,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var manualId by remember { mutableStateOf("") }
+    val eligible = savedContacts.filter { it.userId !in currentMemberUserIds }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Üye Ekle") },
+        text = {
+            Column {
+                if (eligible.isNotEmpty()) {
+                    Text(
+                        "Rehberden seç:",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
+                        items(eligible, key = { it.userId }) { contact ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onConfirm(contact.shadeId) }
+                                    .padding(vertical = 8.dp, horizontal = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(AccentPurple.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = (contact.savedName ?: contact.shadeId).take(1).uppercase(),
+                                        color = AccentPurple,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = contact.savedName ?: contact.shadeId,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium,
+                                    )
+                                    Text(
+                                        text = contact.shadeId,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    Text(
+                        "veya Shade ID gir:",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                } else {
+                    Text("Eklemek istediğiniz kişinin Shade ID'sini girin.")
+                    Spacer(Modifier.height(12.dp))
+                }
+                OutlinedTextField(
+                    value = manualId,
+                    onValueChange = { manualId = it },
+                    label = { Text("Shade ID (örn: CG-1234-ABCD)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(manualId) },
+                enabled = manualId.isNotBlank(),
+            ) { Text("Ekle", color = AccentPurple) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Vazgeç") }
+        },
+    )
+}
+
+@Composable
+private fun MediaRow(mediaMessages: List<MessageEntity>) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        items(mediaMessages, key = { it.messageId }) { message ->
+            val imagePath = message.imagePath
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (imagePath != null && File(imagePath).exists()) {
+                    AsyncImage(
+                        model = File(imagePath),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.Image,
+                        contentDescription = null,
+                        tint = AccentPurple.copy(alpha = 0.5f),
+                        modifier = Modifier.size(32.dp),
+                    )
+                }
+            }
+        }
+    }
+    Spacer(Modifier.height(12.dp))
 }
 
 @Composable
